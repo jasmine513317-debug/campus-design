@@ -1,0 +1,30 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/teaching_interior.gd" id="1_world"]
+[ext_resource type="Script" path="res://scripts/player/player.gd" id="2_player"]
+[ext_resource type="Script" path="res://scripts/ui/hud.gd" id="3_hud"]
+[ext_resource type="Script" path="res://scripts/world/day_light.gd" id="4_daylight"]
+
+[node name="TeachingBlock" type="Node2D"]
+y_sort_enabled = true
+
+[node name="World" type="Node2D" parent="."]
+z_index = -10
+script = ExtResource("1_world")
+
+[node name="Player" type="CharacterBody2D" parent="."]
+position = Vector2(400, 390)
+script = ExtResource("2_player")
+estate_path = NodePath("../World")
+
+[node name="Camera2D" type="Camera2D" parent="Player"]
+zoom = Vector2(1.45, 1.45)
+position_smoothing_enabled = true
+position_smoothing_speed = 7.0
+limit_smoothed = true
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("3_hud")
+
+[node name="DayLight" type="CanvasModulate" parent="."]
+script = ExtResource("4_daylight")

@@ -1,0 +1,18 @@
+# Godot
+.godot/
+*.translation
+export_presets.cfg
+*.tmp
+~*
+*.TMP
+
+# 本地缓存与截图（不提交）
+.shots/
+.backup-*/
+harvest/
+demo/
+addons/terrain_3d/
+
+# 系统
+.DS_Store
+Thumbs.db
