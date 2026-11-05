@@ -30,7 +30,7 @@ func _ready() -> void:
 		print("ALL TESTS PASSED")
 	else:
 		print("%d TEST(S) FAILED" % _fails)
-	get_tree().quit()
+	get_tree().quit(0 if _fails == 0 else 1)
 
 
 func _ok(cond: bool, label: String) -> void:

@@ -43,6 +43,7 @@ static var _char_cache: Dictionary = {}
 static var _crop_cache: Dictionary = {}
 static var _prop_cache: Dictionary = {}
 static var _icon_cache: Dictionary = {}
+static var _external_cache: Dictionary = {}
 
 
 # =====================================================================
@@ -121,9 +122,10 @@ static func external(kind: String, key: String) -> Texture2D:
 	## 外部素材包挂载点：把同名 PNG 放进 assets/sprites/ 就会自动替换程序化素材。
 	## 例如 assets/sprites/tree_ginkgo.png、assets/sprites/prop_bench.png。
 	var path := "res://assets/sprites/%s_%s.png" % [kind, key]
-	if not ResourceLoader.exists(path):
-		return null
-	return load(path) as Texture2D
+	if not _external_cache.has(path):
+		# Cache missing overrides too: hundreds of trees share the same few names.
+		_external_cache[path] = load(path) as Texture2D if ResourceLoader.exists(path) else null
+	return _external_cache[path]
 
 
 static func character(direction: String, frame: int) -> Texture2D:

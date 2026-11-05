@@ -127,6 +127,9 @@
 	},
 	{
 	  "id": "teach_a",
+	  "entrance": [185, 43, 4, 4],
+	  "interior_scene": "res://scenes/interiors/teaching_block.tscn",
+	  "interior_spawn": [400, 390],
 	  "name": "教学 A 楼",
 	  "style": "modern",
 	  "wall": "#ecebe4",

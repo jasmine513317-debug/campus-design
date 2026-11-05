@@ -9,6 +9,7 @@ const TILE := 16
 
 var facing := Vector2.DOWN
 var facing_name := "down"
+var touch_direction := Vector2.ZERO
 
 var _estate: Node
 var _camera: Camera2D
@@ -39,8 +40,8 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	var input := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
-	var speed := RUN_SPEED if Input.is_key_pressed(KEY_SHIFT) else SPEED
+	var input := (Input.get_vector("move_left", "move_right", "move_up", "move_down") + touch_direction).limit_length(1.0)
+	var speed := RUN_SPEED if Input.is_action_pressed("run") else SPEED
 	velocity = input * speed
 	if input.length() > 0.05:
 		_update_facing(input)
@@ -53,8 +54,9 @@ func _physics_process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_accept"):
+	if event.is_action_pressed("interact") and not event.is_echo():
 		_interact()
+		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.physical_keycode == KEY_T:
@@ -80,6 +82,8 @@ func _set_frame(frame: int) -> void:
 
 
 func _interact() -> void:
+	if SceneFlow.transitioning:
+		return
 	var npc := _npc_near()
 	if npc != null and npc.has_method("greet"):
 		Messages.say(npc.greet())
@@ -95,6 +99,14 @@ func _interact() -> void:
 func interact() -> void:
 	## HUD 触屏动作键复用同一套最近目标交互逻辑。
 	_interact()
+
+
+func interaction_hint() -> String:
+	if _npc_near() != null:
+		return "打个招呼"
+	if _estate != null and _estate.has_method("interaction_hint"):
+		return _estate.interaction_hint(global_position + facing * 20.0)
+	return ""
 
 
 func _npc_near() -> Node2D:

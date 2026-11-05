@@ -21,6 +21,7 @@ var season_index: int = 2
 ## 从当天 6:00 起经过的分钟。
 var minutes_since_wake: float = 0.0
 var paused: bool = false
+var _last_emitted_minute := -1
 
 func _ready() -> void:
 	day_started.emit(day, season_id())
@@ -73,4 +74,9 @@ func sleep_until_morning() -> void:
 
 
 func _emit_clock() -> void:
+	# HUD and lighting only need an update when the displayed minute changes.
+	var total := WAKE_MINUTE + int(minutes_since_wake)
+	if total == _last_emitted_minute:
+		return
+	_last_emitted_minute = total
 	time_changed.emit(hour(), minute())

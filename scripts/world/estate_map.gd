@@ -1343,12 +1343,12 @@ func _spawn_lamps() -> void:
 
 func _spawn_npcs() -> void:
 	var routes := [
-		[Vector2(60, 23), Vector2(200, 23), Vector2(200, 55), Vector2(90, 55)],
-		[Vector2(120, 24), Vector2(120, 148), Vector2(160, 148), Vector2(160, 24)],
-		[Vector2(210, 65), Vector2(210, 145), Vector2(240, 145), Vector2(240, 65)],
-		[Vector2(300, 62), Vector2(300, 95), Vector2(340, 95), Vector2(340, 62)],
-		[Vector2(60, 130), Vector2(160, 130), Vector2(160, 148), Vector2(60, 148)],
-		[Vector2(180, 24), Vector2(360, 24), Vector2(360, 60), Vector2(180, 60)],
+		[Vector2(24, 22), Vector2(78, 22), Vector2(78, 152), Vector2(24, 152)],
+		[Vector2(78, 55), Vector2(168, 55), Vector2(168, 152), Vector2(78, 152)],
+		[Vector2(252, 22), Vector2(374, 22), Vector2(374, 152), Vector2(252, 152)],
+		[Vector2(292, 98), Vector2(374, 98), Vector2(374, 152), Vector2(292, 152)],
+		[Vector2(167, 22), Vector2(208, 22), Vector2(208, 66), Vector2(167, 66)],
+		[Vector2(168, 66), Vector2(252, 66), Vector2(252, 152), Vector2(168, 152)],
 	]
 	var shirts := [Color("c05a4a"), Color("4a9a6a"), Color("d9a13a"), Color("6a5aa8"), Color("d97a9a"), Color("3a8fb5")]
 	var hairs := [Color("3a2a1e"), Color("5a3a23"), Color("2a2a2a"), Color("6b4423"), Color("4a3020"), Color("3a2a1e")]
@@ -1550,13 +1550,16 @@ func zone_name(world_pos: Vector2) -> String:
 
 
 func try_interact(world_pos: Vector2) -> String:
-	var best: Dictionary = {}
-	var best_dist := 52.0
-	for prop: Dictionary in _props:
-		var d: float = world_pos.distance_to(prop["pos"] + Vector2(0, -8))
-		if d < best_dist:
-			best_dist = d
-			best = prop
+	var entrance := _entrance_at(world_pos)
+	if not entrance.is_empty():
+		var player := get_tree().get_first_node_in_group("player") as Node2D
+		if player == null:
+			return ""
+		var spawn: Array = entrance.get("interior_spawn", [400, 390])
+		if SceneFlow.enter(str(entrance["interior_scene"]), player.global_position, Vector2(spawn[0], spawn[1])) == OK:
+			return "走进教学楼。"
+		return ""
+	var best := _nearest_prop(world_pos)
 	if not best.is_empty():
 		match str(best["type"]):
 			"sign":
@@ -1569,14 +1572,44 @@ func try_interact(world_pos: Vector2) -> String:
 				return "自行车整整齐齐地停成一排。"
 			_:
 				return "校园里很安静。"
-	var cell := Vector2i(floori(world_pos.x / TILE), floori(world_pos.y / TILE))
-	for b: Variant in _buildings:
-		var building: Dictionary = b
-		for part: Rect2i in building["parts"]:
-			var expanded := Rect2(part.position * TILE, part.size * TILE)
-			if expanded.grow(-4).has_point(world_pos):
-				return "%s · 五层。现在是上课时间。" % str(building.get("name", "教学楼"))
+	for b: Dictionary in _buildings:
+		for part: Rect2i in b["parts"]:
+			if Rect2(part.position * TILE, part.size * TILE).grow(-4).has_point(world_pos):
+				return "%s · 五层。现在是上课时间。" % str(b.get("name", "教学楼"))
 	return ""
+
+
+func interaction_hint(world_pos: Vector2) -> String:
+	if not _entrance_at(world_pos).is_empty():
+		return "进入教学楼"
+	if not _nearest_prop(world_pos).is_empty():
+		return "查看"
+	for b: Dictionary in _buildings:
+		for part: Rect2i in b["parts"]:
+			if Rect2(part.position * TILE, part.size * TILE).grow(-4).has_point(world_pos):
+				return "查看"
+	return ""
+
+
+func _entrance_at(world_pos: Vector2) -> Dictionary:
+	for building: Dictionary in _buildings:
+		if not building.has("interior_scene") or not building.has("entrance"):
+			continue
+		var rect := _rect_i(building["entrance"])
+		if Rect2(rect.position * TILE, rect.size * TILE).has_point(world_pos):
+			return building
+	return {}
+
+
+func _nearest_prop(world_pos: Vector2) -> Dictionary:
+	var best: Dictionary = {}
+	var best_dist := 52.0
+	for prop: Dictionary in _props:
+		var d: float = world_pos.distance_to(prop["pos"] + Vector2(0, -8))
+		if d < best_dist:
+			best_dist = d
+			best = prop
+	return best
 
 
 func _ellipse(c: Vector2, radii: Vector2, color: Color) -> void:

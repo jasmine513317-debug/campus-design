@@ -10,7 +10,7 @@ const KEYS := [
 	{"t": 18.5, "c": Color(1.0, 0.87, 0.70)},
 	{"t": 20.0, "c": Color(0.78, 0.70, 0.78)},
 	{"t": 21.5, "c": Color(0.54, 0.56, 0.76)},
-	{"t": 24.0, "c": Color(0.40, 0.46, 0.68)},
+	{"t": 24.0, "c": Color(0.34, 0.40, 0.62)},
 ]
 
 
@@ -21,8 +21,6 @@ func _ready() -> void:
 
 func _on_time(hour: int, minute: int) -> void:
 	var t := float(hour) + float(minute) / 60.0
-	if hour < 6:
-		t += 24.0
 	color = _sample(t)
 
 
