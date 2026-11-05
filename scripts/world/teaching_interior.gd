@@ -1,6 +1,8 @@
 extends Node2D
 ## Programmatic teaching building interior: two classrooms, hall, furnishings and exit.
 
+const EXIT_AREA := Rect2(338, 402, 124, 90)
+
 const ROOM_A := Rect2(54, 48, 316, 226)
 const ROOM_B := Rect2(430, 48, 316, 226)
 const HALL := Rect2(54, 290, 692, 144)
@@ -17,6 +19,7 @@ var _interactive: Array[Dictionary] = []
 
 func _ready() -> void:
 	add_to_group("estate")
+	_build_interactions()
 	_build_collision()
 	_spawn_npcs()
 	queue_redraw()
@@ -28,6 +31,18 @@ func get_world_rect() -> Rect2:
 
 func zone_name(_position: Vector2) -> String:
 	return "教学楼 A · 室内"
+
+
+func _build_interactions() -> void:
+	_interactive = [
+		{"rect": Rect2(124, 56, 206, 82), "text": "黑板上写着今天的课程内容。"},
+		{"rect": Rect2(488, 56, 206, 82), "text": "黑板上写着今天的课程内容。"},
+		{"rect": Rect2(187, 270, 72, 74), "text": "A101 教室门牌"},
+		{"rect": Rect2(563, 270, 72, 74), "text": "A102 教室门牌"},
+		{"rect": Rect2(322, 282, 152, 114), "text": "公告栏：本周课程与社团活动安排。"},
+		{"rect": Rect2(76, 296, 90, 140), "text": "售货机屏幕亮着，里面摆着饮料和零食。"},
+		{"rect": Rect2(632, 302, 86, 130), "text": "饮水机的水温刚刚好。"},
+	]
 
 
 func _draw() -> void:
@@ -111,7 +126,6 @@ func _draw_classroom_door(pos: Vector2, plaque: String) -> void:
 	draw_rect(Rect2(pos + Vector2(16, -17), Vector2(38, 13)), Color("745b42"))
 	draw_rect(Rect2(pos + Vector2(18, -15), Vector2(34, 9)), Color("e6d4a8"))
 	draw_string(ThemeDB.fallback_font, pos + Vector2(21, -8), plaque, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, INK)
-	_interactive.append({"rect": Rect2(pos + Vector2(-9, 0), Vector2(72, 74)), "text": "%s 教室门牌" % plaque})
 
 
 func _draw_blackboard(rect: Rect2, heading: String, line: String) -> void:
@@ -122,7 +136,6 @@ func _draw_blackboard(rect: Rect2, heading: String, line: String) -> void:
 	draw_string(ThemeDB.fallback_font, rect.position + Vector2(12, 24), heading, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 20, 10, Color("e5dcc0"))
 	draw_string(ThemeDB.fallback_font, rect.position + Vector2(14, 39), line, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 22, 9, Color("c9d0b4"))
 	draw_rect(Rect2(rect.position.x + 8, rect.end.y + 2, rect.size.x - 16, 3), Color("a4845d"))
-	_interactive.append({"rect": rect.grow(18), "text": "黑板上写着今天的课程内容。"})
 
 
 func _draw_podium(pos: Vector2) -> void:
@@ -157,7 +170,6 @@ func _draw_bulletin_board(rect: Rect2) -> void:
 		draw_rect(Rect2(note.position + Vector2(3, 5), Vector2(14, 1)), Color("95866b"))
 		draw_rect(Rect2(note.position + Vector2(3, 10), Vector2(11, 1)), Color("95866b"))
 		draw_circle(note.position + Vector2(10, 2), 2.0, Color("a04f43"))
-	_interactive.append({"rect": rect.grow(22), "text": "公告栏：本周课程与社团活动安排。"})
 
 
 func _draw_vending_machine(rect: Rect2) -> void:
@@ -171,7 +183,6 @@ func _draw_vending_machine(rect: Rect2) -> void:
 			draw_rect(snack, [Color("d59a4f"), Color("b96855"), Color("d8bf6f")][(i + row) % 3])
 	draw_rect(Rect2(rect.end.x - 14, rect.position.y + 10, 7, 43), Color("a8bbb0"))
 	draw_rect(Rect2(rect.position.x + 9, rect.end.y - 25, rect.size.x - 18, 13), Color("596e68"))
-	_interactive.append({"rect": rect.grow(22), "text": "售货机屏幕亮着，里面摆着饮料和零食。"})
 
 
 func _draw_water_fountain(rect: Rect2) -> void:
@@ -181,7 +192,6 @@ func _draw_water_fountain(rect: Rect2) -> void:
 	draw_rect(Rect2(rect.position + Vector2(8, 4), Vector2(rect.size.x - 16, 8)), Color("b3b6a8"))
 	draw_rect(Rect2(rect.position + Vector2(13, 16), Vector2(17, 4)), Color("525e5a"))
 	draw_rect(Rect2(rect.position + Vector2(18, 18), Vector2(8, 9)), Color("74a0a4"))
-	_interactive.append({"rect": rect.grow(24), "text": "饮水机的水温刚刚好。"})
 
 
 func _draw_bench(pos: Vector2) -> void:
@@ -210,7 +220,6 @@ func _draw_exit_door(rect: Rect2) -> void:
 	draw_rect(Rect2(rect.position.x + 5, rect.position.y + 5, rect.size.x - 10, rect.size.y - 9), Color("a7c0b7"))
 	draw_rect(Rect2(rect.get_center().x - 2, rect.position.y + 5, 4, rect.size.y - 9), Color("596d6b"))
 	draw_rect(Rect2(rect.end.x - 9, rect.position.y + 14, 3, 3), Color("e1bd68"))
-	_interactive.append({"rect": Rect2(350, 414, 100, 66), "text": "离开教学楼，回到校园。"})
 
 
 func _build_collision() -> void:
@@ -219,7 +228,7 @@ func _build_collision() -> void:
 	add_child(_solids)
 	for rect in [
 		Rect2(24, 24, 752, 24), Rect2(24, 24, 24, 432), Rect2(752, 24, 24, 432),
-		Rect2(24, 448, 324, 24), Rect2(452, 448, 324, 24),
+		Rect2(24, 448, 752, 24),
 		Rect2(54, 270, 142, 18), Rect2(250, 270, 120, 18),
 		Rect2(430, 270, 142, 18), Rect2(626, 270, 120, 18), Rect2(388, 48, 24, 230),
 		Rect2(54, 48, 692, 18), Rect2(54, 48, 18, 240), Rect2(728, 48, 18, 240),
@@ -244,35 +253,33 @@ func _add_solid(rect: Rect2) -> void:
 func _spawn_npcs() -> void:
 	var npc_script := preload("res://scripts/world/npc_student.gd")
 	var routes := [
-		[Vector2(102, 338), Vector2(268, 338), Vector2(268, 382), Vector2(102, 382)],
-		[Vector2(500, 338), Vector2(686, 338), Vector2(686, 382), Vector2(500, 382)],
-		[Vector2(92, 166), Vector2(126, 166), Vector2(126, 230), Vector2(92, 230)],
-		[Vector2(694, 156), Vector2(694, 230), Vector2(648, 230), Vector2(648, 156)],
+		[Vector2(180, 338), Vector2(268, 338), Vector2(268, 382), Vector2(180, 382)],
+		[Vector2(500, 338), Vector2(620, 338), Vector2(620, 382), Vector2(500, 382)],
+		[Vector2(88, 134), Vector2(88, 258), Vector2(260, 258), Vector2(260, 134)],
+		[Vector2(454, 134), Vector2(454, 258), Vector2(640, 258), Vector2(640, 134)],
 	]
 	var shirts := [Color("b26654"), Color("637d91"), Color("9a8050"), Color("6a8066")]
 	for i in routes.size():
 		var npc: Node2D = npc_script.new()
 		npc.route = routes[i]
+		npc.route_scale = 1.0
 		npc.shirt = shirts[i]
 		npc.position = routes[i][0]
 		get_parent().add_child.call_deferred(npc)
 
 
 func interaction_hint(world_pos: Vector2) -> String:
-	for node: Node in get_tree().get_nodes_in_group("npcs"):
-		var npc := node as Node2D
-		if npc != null and npc.global_position.distance_to(world_pos) < 58.0:
-			return "打个招呼"
+	if EXIT_AREA.has_point(world_pos):
+		return "离开教学楼"
 	for item: Dictionary in _interactive:
 		if (item["rect"] as Rect2).has_point(world_pos):
-			return "离开教学楼" if world_pos.y > 414.0 else "查看"
+			return "查看"
 	return ""
 
 
 func try_interact(world_pos: Vector2) -> String:
-	if Rect2(350, 414, 100, 66).grow(12.0).has_point(world_pos):
-		SceneFlow.leave_building()
-		return "走出教学楼，回到校园。"
+	if EXIT_AREA.has_point(world_pos):
+		return "走出教学楼，回到校园。" if SceneFlow.leave_building() == OK else ""
 	for item: Dictionary in _interactive:
 		if (item["rect"] as Rect2).has_point(world_pos):
 			return str(item["text"])

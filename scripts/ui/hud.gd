@@ -19,6 +19,7 @@ var _wind_label: Label
 var _loc_label: Label
 var _dial: Control
 var _map_control: Control
+var _map_marker: Control
 var _toast_panel: PanelContainer
 var _toast_label: Label
 var _hint_panel: PanelContainer
@@ -62,8 +63,8 @@ func _process(delta: float) -> void:
 	_map_timer += delta
 	if _map_timer > 0.18:
 		_map_timer = 0.0
-		if _map_control != null:
-			_map_control.queue_redraw()
+		if _map_marker != null:
+			_map_marker.queue_redraw()
 		_update_interaction_hint()
 
 
@@ -126,7 +127,9 @@ func _load_minimap_data() -> void:
 	var file := FileAccess.open("res://data/estate.json", FileAccess.READ)
 	if file == null:
 		return
-	_layout_data = JSON.parse_string(file.get_as_text()) as Dictionary
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	if parsed is Dictionary:
+		_layout_data = parsed
 	file.close()
 
 
@@ -141,11 +144,16 @@ func _build_minimap() -> void:
 	_map_control.offset_right = -300.0
 	_map_control.offset_bottom = 132.0
 	_map_control.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_map_control.draw.connect(func(): _draw_minimap())
+	_map_control.draw.connect(_draw_minimap_background)
 	_root.add_child(_map_control)
+	_map_marker = Control.new()
+	_map_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map_marker.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_map_marker.draw.connect(_draw_minimap_marker)
+	_map_control.add_child(_map_marker)
 
 
-func _draw_minimap() -> void:
+func _draw_minimap_background() -> void:
 	if _map_control == null:
 		return
 	var size := _map_control.size
@@ -158,8 +166,7 @@ func _draw_minimap() -> void:
 	if active_estate != null and active_estate.has_method("get_world_rect"):
 		var world_bounds: Rect2 = active_estate.get_world_rect()
 		if world_bounds.size.x < 1000.0:
-			var indoor_player := get_tree().get_first_node_in_group("player") as Node2D
-			_draw_indoor_minimap(map_rect, indoor_player)
+			_draw_indoor_minimap(map_rect)
 			return
 	_map_control.draw_rect(map_rect, Color("727a4d"))
 	var scale := Vector2(map_rect.size.x / 400.0, map_rect.size.y / 180.0)
@@ -180,15 +187,9 @@ func _draw_minimap() -> void:
 		for part: Array in building.get("parts", []):
 			_map_control.draw_rect(_map_data_rect(part, map_rect, scale), building_color)
 	_map_control.draw_rect(map_rect, Color("403b37"), false, 1.0)
-	var player := get_tree().get_first_node_in_group("player") as Node2D
-	if player != null:
-		var world_cell := player.global_position / 16.0
-		var dot := map_rect.position + Vector2(world_cell.x * scale.x, world_cell.y * scale.y)
-		_map_control.draw_circle(dot, 3.2, Color("f2d16b"))
-		_map_control.draw_arc(dot, 4.2, 0.0, TAU, 12, Color("4f463a"), 1.0)
 
 
-func _draw_indoor_minimap(outer: Rect2, player: Node2D) -> void:
+func _draw_indoor_minimap(outer: Rect2) -> void:
 	_map_control.draw_rect(Rect2(Vector2.ZERO, _map_control.size), C_PAPER_LIGHT)
 	_map_control.draw_rect(Rect2(Vector2.ZERO, _map_control.size), C_PAPER_EDGE, false, 2.0)
 	var font := ThemeDB.fallback_font
@@ -205,10 +206,22 @@ func _draw_indoor_minimap(outer: Rect2, player: Node2D) -> void:
 	_map_control.draw_rect(Rect2(map_rect.position + Vector2(388, 48) * scale, Vector2(24, 230) * scale), Color("94846e"))
 	_map_control.draw_rect(Rect2(map_rect.position + Vector2(356, 430) * scale, Vector2(88, 28) * scale), Color("71898a"))
 	_map_control.draw_rect(map_rect, Color("51483e"), false, 1.0)
-	if player != null:
-		var dot := map_rect.position + player.global_position * scale
-		_map_control.draw_circle(dot, 3.0, Color("f2d16b"))
-		_map_control.draw_arc(dot, 4.0, 0.0, TAU, 12, Color("4f463a"), 1.0)
+
+
+func _draw_minimap_marker() -> void:
+	var player := get_tree().get_first_node_in_group("player") as Node2D
+	var estate := get_tree().get_first_node_in_group("estate")
+	if player == null or estate == null or not estate.has_method("get_world_rect"):
+		return
+	var bounds: Rect2 = estate.get_world_rect()
+	var map_rect := Rect2(7, 21, _map_control.size.x - 14, _map_control.size.y - 28)
+	if bounds.size.x < 1000.0:
+		var width := minf(map_rect.size.x, map_rect.size.y * bounds.size.x / bounds.size.y)
+		map_rect.position.x += (map_rect.size.x - width) * 0.5
+		map_rect.size.x = width
+	var dot := map_rect.position + (player.global_position - bounds.position) / bounds.size * map_rect.size
+	_map_marker.draw_circle(dot, 3.2, Color("f2d16b"))
+	_map_marker.draw_arc(dot, 4.2, 0.0, TAU, 12, Color("4f463a"), 1.0)
 
 
 func _map_data_rect(values: Array, map_rect: Rect2, scale: Vector2) -> Rect2:
@@ -359,7 +372,7 @@ func _on_joystick_event(event: InputEvent, control: Control) -> void:
 	elif event is InputEventScreenDrag and _stick_active and not _stick_mouse and event.index == _stick_touch_id:
 		_update_stick(event.position - center)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
+		if event.pressed and not _stick_active:
 			_stick_active = true
 			_stick_mouse = true
 			_update_stick(event.position - center)
@@ -373,11 +386,9 @@ func _on_joystick_event(event: InputEvent, control: Control) -> void:
 func _update_stick(delta_pos: Vector2) -> void:
 	var max_radius := 48.0
 	_stick_vector = (delta_pos / max_radius).limit_length(1.0)
-	var threshold := 0.28
-	_set_virtual_action("ui_left", _stick_vector.x < -threshold)
-	_set_virtual_action("ui_right", _stick_vector.x > threshold)
-	_set_virtual_action("ui_up", _stick_vector.y < -threshold)
-	_set_virtual_action("ui_down", _stick_vector.y > threshold)
+	var player := get_tree().get_first_node_in_group("player")
+	if player != null:
+		player.set("touch_direction", _stick_vector if _stick_vector.length() > 0.28 else Vector2.ZERO)
 	_joystick.queue_redraw()
 
 
@@ -386,17 +397,34 @@ func _release_stick() -> void:
 	_stick_mouse = false
 	_stick_touch_id = -1
 	_stick_vector = Vector2.ZERO
-	for action in ["ui_left", "ui_right", "ui_up", "ui_down"]:
-		_set_virtual_action(action, false)
-	_joystick.queue_redraw()
+	if is_inside_tree():
+		var player := get_tree().get_first_node_in_group("player")
+		if player != null:
+			player.set("touch_direction", Vector2.ZERO)
+	if is_instance_valid(_joystick):
+		_joystick.queue_redraw()
 
 
-func _set_virtual_action(action: String, pressed: bool) -> void:
-	if pressed:
-		if not Input.is_action_pressed(action):
-			Input.action_press(action)
-	elif Input.is_action_pressed(action):
-		Input.action_release(action)
+func _input(event: InputEvent) -> void:
+	if not _stick_active:
+		return
+	if event is InputEventMouseButton and _stick_mouse and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		_release_stick()
+	elif event is InputEventScreenTouch and not _stick_mouse and event.index == _stick_touch_id and not event.pressed:
+		_release_stick()
+	elif (event is InputEventMouseMotion and _stick_mouse) or (event is InputEventScreenDrag and not _stick_mouse and event.index == _stick_touch_id):
+		var local_pos: Vector2 = _joystick.get_global_transform_with_canvas().affine_inverse() * event.position
+		_update_stick(local_pos - _joystick.size * 0.5)
+		get_viewport().set_input_as_handled()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_release_stick()
+
+
+func _exit_tree() -> void:
+	_release_stick()
 
 
 func _on_action_pressed() -> void:
@@ -407,13 +435,10 @@ func _on_action_pressed() -> void:
 
 func _update_interaction_hint() -> void:
 	var player := get_tree().get_first_node_in_group("player") as Node2D
-	var estate := get_tree().get_first_node_in_group("estate")
-	if player == null or estate == null or not estate.has_method("interaction_hint"):
+	if player == null or not player.has_method("interaction_hint"):
 		_interaction_panel.visible = false
 		return
-	var facing: Vector2 = player.get("facing")
-	var target: Vector2 = player.global_position + facing * 20.0
-	var prompt: String = estate.interaction_hint(target)
+	var prompt: String = player.interaction_hint()
 	if prompt == "":
 		_interaction_panel.visible = false
 		return

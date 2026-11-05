@@ -2,6 +2,8 @@ extends Node2D
 ## 校园 NPC：沿路点循环行走，偶尔停下；可以按空格搭话。
 
 var route: Array = []
+## Outdoor routes use tiles; interiors use pixel coordinates.
+var route_scale := 16.0
 var shirt: Color = Color("c05a4a")
 var hair: Color = Color("3a2a1e")
 var speed := 46.0
@@ -42,7 +44,7 @@ func _process(delta: float) -> void:
 		_wait -= delta
 		_apply(0)
 		return
-	var target := Vector2(route[_idx]) * 16.0
+	var target := Vector2(route[_idx]) * route_scale
 	var to := target - global_position
 	if to.length() < 4.0:
 		_idx = (_idx + 1) % route.size()
@@ -52,7 +54,7 @@ func _process(delta: float) -> void:
 		_dir = "right" if to.x > 0.0 else "left"
 	else:
 		_dir = "down" if to.y > 0.0 else "up"
-	global_position += to.normalized() * speed * delta
+	global_position = global_position.move_toward(target, speed * delta)
 	_walk += delta * 6.0
 	_apply(1 + int(_walk) % 2)
 

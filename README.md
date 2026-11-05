@@ -2,7 +2,16 @@
 
 一个纯像素风的 **校园漫游** 游戏：整张地图按校园总平面图排布，没有农田。当前版本在打磨道路、铺装与整体校园质感。
 
-用 **Godot 4.7+** 打开本文件夹即可运行（F5）。
+用 **Godot 4.7.2** 打开本文件夹即可运行（F5）。项目默认使用 Compatibility 渲染器，保持现有 2D 像素画面并扩大设备兼容范围。
+
+## 稳定性与交互优化
+
+- **教学楼已接通**：到教学 A 楼南侧入口附近按空格，进入两间教室和走廊；在南侧出口互动返回原来的门外位置。其他建筑仍为室外展示。
+- **完整操作**：WASD 与方向键均可移动，Shift 奔跑，空格或 Enter 互动；左下摇杆支持模拟输入，右下按钮用于互动。松开摇杆、失去焦点或切换场景时会清理触屏输入，同时保留键盘状态。
+- **一致的交互提示**：NPC、建筑入口、室内出口和道具使用与实际操作一致的提示判断。
+- **NPC 路线修正**：校园路线避开静态障碍，室内路线使用像素坐标并绕开课桌；低帧率时不会越过目标点。
+- **减少重复工作**：时钟按游戏分钟发信号，小地图分离静态底图和玩家标记，外部素材查找缓存包含未找到的资源。
+- **回归检查**：覆盖地图、输入、时间、昼夜色调、NPC 路线、室内互动和进出场景；GitHub Actions 在 push / PR 时执行。
 
 ## 本版调整
 
@@ -43,7 +52,9 @@
 | 像素素材 | `scripts/art/pixel_art.gd` | 程序化生成全部贴图，并支持 `assets/sprites/` 同名 PNG 覆盖 |
 | 玩家 | `scripts/player/player.gd` | 移动、奔跑、互动 |
 | NPC | `scripts/world/npc_student.gd` | 6 个沿路线走动的学生，可搭话 |
-| HUD | `scripts/ui/hud.gd` | 日历、当前位置、提示条 |
+| 室内 | `scripts/world/teaching_interior.gd` | 教学 A 楼两间教室、走廊、4 名 NPC、公告栏与出口 |
+| 场景切换 | `scripts/autoload/scene_flow.gd` | 入口/出口位置交接、重复切换保护与失败状态恢复 |
+| HUD | `scripts/ui/hud.gd` | 日历、小地图、当前位置、交互提示、触屏操作 |
 
 ## 操作
 
@@ -51,20 +62,43 @@
 | --- | --- |
 | WASD / 方向键 | 移动 |
 | Shift | 奔跑 |
-| 空格 | 和 NPC / 长椅 / 校牌 / 建筑互动 |
+| 空格 / Enter | 和 NPC / 长椅 / 校牌 / 建筑互动，进出教学 A 楼 |
+| 左下摇杆 / 右下 A 按钮 | 鼠标或触屏移动 / 互动 |
 | T | 跳到清晨 |
 | F1 | 显示/隐藏操作提示 |
 
 ## 调试
 
+完整检查需要 Node.js 22+ 和 Godot 4.7.2，不需要安装 npm 包：
+
 ```powershell
-godot --headless --path . --import
-godot --headless --path . res://dev/test_game.tscn     # 无头自检
-godot --path . --resolution 1280x720 res://dev/capture.tscn   # 截图到 .shots/
+# Godot 已在 PATH 中时直接运行
+node dev/verify.mjs
+
+# Windows 也可指定控制台版可执行文件
+$env:GODOT_BIN = 'C:\path\to\Godot_v4.7.2-stable_win64_console.exe'
+node dev/verify.mjs
 ```
+
+验证器依次执行资源导入、素材检查、地图检查、核心回归和室内往返检查。非零退出码、脚本/引擎错误、超时或缺少成功标记均会使检查失败。日志写入系统临时目录并在结束时清理。
+
+单独运行或截图：
+
+```powershell
+godot --headless --path . --editor --import --quit
+godot --headless --path . res://dev/test_game.tscn
+godot --headless --path . res://dev/test_core.tscn
+godot --headless --path . --script res://dev/test_interior_transition.gd
+godot --path . --resolution 1280x720 res://dev/capture.tscn
+godot --path . --resolution 1280x720 --script res://dev/capture_interior_from_door.gd
+```
+
+截图需要图形环境，输出到 `.shots/`，不提交生成缓存。
+
+建筑入口在 `data/estate.json` 的建筑条目中配置：`entrance` 使用格坐标矩形，`interior_scene` 指定场景，`interior_spawn` 使用室内像素坐标。校园 NPC 路点默认按 16 像素/格换算，室内设置 `route_scale = 1.0`。
 
 ## 下一步
 
-1. 建筑室内场景（图书馆中庭、教学楼门厅）。
+1. 扩展其他建筑室内场景（图书馆中庭、更多教学楼）。
 2. 上课、社团、好感度与任务日程。
 3. 存档、音效与环境音。
