@@ -17,17 +17,25 @@ func _ready() -> void:
 	await get_tree().create_timer(1.4).timeout
 
 	_player = _main.get_node("Player")
+	_player.set_physics_process(false)
 	_camera = _player.get_node("Camera2D")
 
 	var spots: Array = [
-		["gate", Vector2(3208, 2340), 2.5],
-		["landmark", Vector2(3208, 2290), 2.0],
-		["grove", Vector2(2848, 2208), 2.4],
-		["gym", Vector2(1944, 760), 0.95],
+		["gate", Vector2(3328, 2340), 2.0],
+		["landmark", Vector2(3328, 2290), 2.0],
+		["grove", Vector2(3008, 2208), 2.0],
+		["gym", Vector2(1944, 760), 1.0],
 		["gym_front", Vector2(1944, 900), 2.0],
 		["sports_strip", Vector2(2528, 1600), 1.0],
-		["boat", Vector2(930, 640), 2.5],
+		["boat", Vector2(888, 676), 2.0],
 		["overview", Vector2(3200, 1440), 0.23],
+		["lavender", Vector2(5376, 800), 1.0],
+		["teaching", Vector2(2992, 728), 2.0],
+		["detour", Vector2(4500, 1712), 2.0],
+		["international", Vector2(5360, 1920), 1.0],
+		["west_campus", Vector2(824, 1360), 0.5],
+		["central_axis", Vector2(3328, 1400), 0.5],
+		["merged_track", Vector2(2160, 1630), 0.5],
 	]
 	var idx := 0
 	for spot: Array in spots:

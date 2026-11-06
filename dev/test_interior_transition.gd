@@ -16,7 +16,8 @@ func _run() -> void:
 	await process_frame
 	var player := main.get_node("Player") as Node2D
 	var world := main.get_node("World")
-	player.global_position = Vector2(3000, 728)
+	var outside: Vector2 = world.teaching_entry_point()
+	player.global_position = outside
 	player.facing = Vector2.UP
 	var target: Vector2 = player.global_position + player.get("facing") * 20.0
 	_check(world.interaction_hint(target) == "进入教学楼", "教学楼门口有进入提示")
@@ -44,7 +45,7 @@ func _run() -> void:
 	_check(returned != null and returned.scene_file_path == "res://scenes/world/main.tscn", "出口返回校园主场景")
 	if returned != null and returned.scene_file_path == "res://scenes/world/main.tscn":
 		var returned_player := returned.get_node("Player") as Node2D
-		_check(returned_player.global_position.distance_to(Vector2(3000, 728)) < 1.0, "返回位置保留在门外")
+		_check(returned_player.global_position.distance_to(outside) < 1.0, "返回位置保留在门外")
 	print("----")
 	print("ALL INTERIOR CHECKS PASSED" if _fails == 0 else "%d INTERIOR CHECK(S) FAILED" % _fails)
 	quit(0 if _fails == 0 else 1)

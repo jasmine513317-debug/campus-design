@@ -1,13 +1,13 @@
 extends CanvasLayer
 ## 校园 HUD：右上角日历时钟，左下角当前位置，左上角操作提示，底部中央提示条。
 
-const C_PANEL := Color(0.10, 0.12, 0.08, 0.94)
-const C_BORDER := Color(0.52, 0.41, 0.24)
+const C_PANEL := Color("304c49")
+const C_BORDER := Color("9c714b")
 const C_GOLD := Color(0.96, 0.82, 0.44)
 const C_INK := Color(0.95, 0.92, 0.81)
 const C_MUTED := Color(0.70, 0.71, 0.58)
-const C_PAPER := Color("e7d6af")
-const C_PAPER_LIGHT := Color("f1e5c8")
+const C_PAPER := Color("f0dfb7")
+const C_PAPER_LIGHT := Color("faebc9")
 const C_PAPER_EDGE := Color("93784e")
 const C_PAPER_INK := Color("463b31")
 
@@ -79,7 +79,8 @@ func _build() -> void:
 	_build_hint()
 	_build_toast()
 	_build_interaction_hint()
-	_build_touch_controls()
+	if DisplayServer.is_touchscreen_available():
+		_build_touch_controls()
 
 
 func _build_clock() -> void:
@@ -161,10 +162,10 @@ func _draw_minimap() -> void:
 			var indoor_player := get_tree().get_first_node_in_group("player") as Node2D
 			_draw_indoor_minimap(map_rect, indoor_player)
 			return
-	_map_control.draw_rect(map_rect, Color("727a4d"))
+	_map_control.draw_rect(map_rect, Color("668a52"))
 	var scale := Vector2(map_rect.size.x / 400.0, map_rect.size.y / 180.0)
 	var campus: Array = _layout_data.get("campus", [18, 14, 364, 142])
-	_map_control.draw_rect(_map_data_rect(campus, map_rect, scale), Color("7d8151"))
+	_map_control.draw_rect(_map_data_rect(campus, map_rect, scale), Color("87a163"))
 	var garden: Array = _layout_data.get("garden", [0, 0, 0, 0])
 	_map_control.draw_rect(_map_data_rect(garden, map_rect, scale), Color("8b8a58"))
 	var track: Array = _layout_data.get("track", [0, 0, 0, 0])
@@ -174,7 +175,7 @@ func _draw_minimap() -> void:
 	var pond: Array = _layout_data.get("pond", [0, 0, 0, 0])
 	_map_control.draw_rect(_map_data_rect(pond, map_rect, scale), Color("65a3b5"))
 	for path: Array in _layout_data.get("paths", []):
-		_map_control.draw_rect(_map_data_rect(path, map_rect, scale), Color("777080"))
+		_map_control.draw_rect(_map_data_rect(path, map_rect, scale), Color("d7bd94"))
 	for building: Dictionary in _layout_data.get("buildings", []):
 		var building_color := Color("c4aa7d") if str(building.get("style", "")) in ["gable", "brick"] else Color("b7b6a5")
 		for part: Array in building.get("parts", []):
@@ -248,7 +249,7 @@ func _draw_clock_dial() -> void:
 
 
 func _build_location() -> void:
-	var panel := _panel(0.0, 1.0, 164.0, -48.0, 210.0, 34.0)
+	var panel := _panel(0.0, 1.0, 20.0, -56.0, 240.0, 36.0)
 	var content := _content(panel, 6)
 	_loc_label = _label("当前位置：校园", 11, C_INK)
 	_loc_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -419,21 +420,30 @@ func _update_interaction_hint() -> void:
 		return
 	_interaction_label.text = "%s · 空格" % prompt
 	_interaction_panel.visible = true
-	var screen_pos := get_viewport().get_canvas_transform() * (player.global_position + Vector2(0, -38))
-	_interaction_panel.position = screen_pos - Vector2(61, 32)
+	var screen_pos := get_viewport().get_canvas_transform() * (player.global_position + Vector2(16, -12))
+	var prompt_pos := screen_pos + Vector2(12, -16)
+	var viewport_size := get_viewport().get_visible_rect().size
+	prompt_pos.x = clampf(prompt_pos.x, 12, viewport_size.x - _interaction_panel.size.x - 12)
+	prompt_pos.y = clampf(prompt_pos.y, 12, viewport_size.y - _interaction_panel.size.y - 12)
+	_interaction_panel.position = prompt_pos
 
 
 func _build_hint() -> void:
-	_hint_panel = _panel(0.0, 0.0, 16.0, 16.0, 330.0, 88.0)
-	_hint_panel.modulate.a = 0.92
-	var content := _content(_hint_panel, 10)
+	_hint_panel = _panel(0.0, 0.0, 20.0, 20.0, 264.0, 76.0)
+	var content := _content(_hint_panel, 12)
 	var stack := VBoxContainer.new()
-	stack.add_theme_constant_override("separation", 2)
+	stack.add_theme_constant_override("separation", 4)
 	content.add_child(stack)
-	stack.add_child(_label("CAMPUS HOLLOW · 校园漫游", 11, C_GOLD))
-	var hint := _label("WASD / 方向键 移动    Shift 奔跑\n空格 互动（NPC / 长椅 / 喷泉 / 校牌）\nT 跳到清晨    F1 隐藏提示", 10, C_MUTED)
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	stack.add_child(hint)
+	stack.add_child(_label("C A M P U S   H O L L O W", 14, C_GOLD))
+	stack.add_child(_label("校 园 漫 游  /  秋 日 来 信", 11, C_INK))
+	var bar := _panel(0.5, 1.0, -290.0, -56.0, 580.0, 36.0)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 16)
+	_content(bar, 9).add_child(row)
+	for text in ["WASD  漫步", "Shift  奔跑", "空格  互动", "+ / −  视野", "F1  提示"]:
+		row.add_child(_label(text, 11, C_INK))
+	bar.set_meta("keyboard_hint", true)
 
 
 func _build_toast() -> void:
@@ -461,6 +471,9 @@ func _build_toast() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_F1:
 		_hint_panel.visible = not _hint_panel.visible
+		for control: Node in _root.get_children():
+			if control.has_meta("keyboard_hint"):
+				control.visible = _hint_panel.visible
 
 
 # ---------------------------------------------------------------------
@@ -476,7 +489,7 @@ func _panel(ax: float, ay: float, ox: float, oy: float, w: float, h: float) -> P
 	panel.offset_right = ox + w
 	panel.offset_bottom = oy + h
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_theme_stylebox_override("panel", _flat(C_PANEL, C_BORDER, 2))
+	panel.add_theme_stylebox_override("panel", _wood_frame(C_PANEL))
 	_root.add_child(panel)
 	return panel
 
@@ -492,7 +505,7 @@ func _paper_panel(ax: float, ay: float, ox: float, oy: float, w: float, h: float
 	panel.offset_right = ox + w
 	panel.offset_bottom = oy + h
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_theme_stylebox_override("panel", _flat(C_PAPER, C_PAPER_EDGE, 3))
+	panel.add_theme_stylebox_override("panel", _wood_frame(C_PAPER))
 	_root.add_child(panel)
 	return panel
 
@@ -523,6 +536,24 @@ func _flat(background: Color, border: Color, width: int) -> StyleBoxFlat:
 	style.shadow_color = Color(0.02, 0.03, 0.02, 0.55)
 	style.shadow_size = 2
 	style.shadow_offset = Vector2(2, 2)
+	return style
+
+
+func _wood_frame(background: Color) -> StyleBoxTexture:
+	var img := Image.create(20, 20, false, Image.FORMAT_RGBA8)
+	img.fill(Color("4c3c32"))
+	img.fill_rect(Rect2i(1, 1, 18, 18), Color("9e7048"))
+	img.fill_rect(Rect2i(2, 2, 16, 2), Color("dfb477"))
+	img.fill_rect(Rect2i(2, 4, 2, 12), Color("bc8a56"))
+	img.fill_rect(Rect2i(4, 4, 12, 12), background)
+	img.fill_rect(Rect2i(4, 16, 14, 2), Color("73513a"))
+	img.fill_rect(Rect2i(16, 4, 2, 12), Color("73513a"))
+	for pos in [Vector2i(2, 2), Vector2i(16, 2), Vector2i(2, 16), Vector2i(16, 16)]:
+		img.fill_rect(Rect2i(pos, Vector2i(2, 2)), Color("f0cb85"))
+	var style := StyleBoxTexture.new()
+	style.texture = ImageTexture.create_from_image(img)
+	for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+		style.set_texture_margin(side, 5)
 	return style
 
 

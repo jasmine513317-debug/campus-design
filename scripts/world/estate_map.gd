@@ -2,12 +2,14 @@ extends Node2D
 ## 校园世界：严格按 campus 平面图生成建筑、道路、操场、球场、花园与绿化。
 ##
 ## 分工：
-##   World（本节点，z_index = -10）  静态地表 / 建筑 / 操场 / 球场 / 围墙
-##   Sprite2D（挂在父节点）          树、道具、人物，按 y 排序，可与玩家互相遮挡
+##   World（本节点，z_index = -10）  静态地表 / 操场 / 球场 / 围墙
+##   父节点的同层子节点             建筑、校门、树、道具、人物，按落地位置 y 排序
 ## 所有几何都来自 data/estate.json。
 
 const TILE := 16
 const FLOORS := 5
+const TRACK_LANES := 8
+const TRACK_LANE_WIDTH := 12.0
 
 var _layout: Dictionary = {}
 var _size := Vector2i(400, 180)
@@ -30,6 +32,10 @@ var _props: Array = []
 var _tree_shadows: Array = []
 var _solids: StaticBody2D
 var _tile_rects: Dictionary = {}
+var _solid_rects: Array[Rect2] = []
+var _planted: Array[Vector2] = []
+var _beds: Array[Rect2] = []
+var _plant_exclusions: Array[Rect2] = []
 var _player: Node2D
 
 var _wall_tex: Texture2D
@@ -59,6 +65,8 @@ func _ready() -> void:
 	_brick_pave_tex = PixelArt.tile_texture("brick_paving")
 	_build_masks()
 	_build_collision()
+	_build_flower_beds()
+	_spawn_buildings()
 	_build_labels()
 	add_to_group("estate")
 	queue_redraw()
@@ -154,6 +162,23 @@ func _build_masks() -> void:
 			if x < _campus.position.x + 2 or x >= _campus.end.x - 2 or y < _campus.position.y + 2 or y >= _campus.end.y - 2:
 				_blocked[Vector2i(x, y)] = true
 
+	for b: Dictionary in _buildings:
+		for part: Rect2i in b["parts"]:
+			var r := Rect2(part.position * TILE, part.size * TILE)
+			_plant_exclusions.append(r.grow(34))
+			if r.size.x > 200:
+				_plant_exclusions.append(Rect2(r.get_center().x - 80, r.end.y - 2, 160, 60))
+	for p: Dictionary in _layout.get("props", []):
+		var tex := PixelArt.prop(str(p["type"]))
+		var pos := prop_position(p)
+		_plant_exclusions.append(Rect2(pos - Vector2(tex.get_width() * 0.5 + 12, 24), Vector2(tex.get_width() + 24, 40)))
+		if p["type"] == "boat":
+			_plant_exclusions.append(Rect2(pos - Vector2(tex.get_width() * 0.5 + 16, tex.get_height()), Vector2(tex.get_width() + 32, tex.get_height() + 16)))
+	for r: Rect2i in [_straight_track, _landscape]:
+		_plant_exclusions.append(Rect2(r.position * TILE, r.size * TILE))
+	for bed: Rect2 in _lavender_beds():
+		_plant_exclusions.append(bed.grow(10))
+
 
 func _free(cell: Vector2i) -> bool:
 	if cell.x < 2 or cell.y < 2 or cell.x >= _size.x - 2 or cell.y >= _size.y - 2:
@@ -173,7 +198,28 @@ func get_world_rect() -> Rect2:
 
 
 func spawn_point() -> Vector2:
-	return Vector2(193 * TILE + 8, 152 * TILE + 8)
+	return Vector2(axis_world_x(), _gates[0].position.y * TILE + 72)
+
+
+func axis_world_x() -> float:
+	return float(_layout.get("axis_x", 208)) * TILE
+
+
+func prop_position(prop: Dictionary) -> Vector2:
+	var offset: Array = prop.get("offset", [0, 0])
+	return Vector2(int(prop["x"]) * TILE + 8 + float(offset[0]), int(prop["y"]) * TILE + 16 + float(offset[1]))
+
+
+func teaching_entry_point() -> Vector2:
+	for building: Dictionary in _buildings:
+		if building["id"] == "teach_a":
+			var part: Rect2i = building["parts"][0]
+			return Vector2(part.get_center().x * TILE, part.end.y * TILE + 24)
+	return spawn_point()
+
+
+func _teaching_entry_rect() -> Rect2:
+	return Rect2(teaching_entry_point() + Vector2(-28, -34), Vector2(56, 46))
 
 
 # =====================================================================
@@ -183,6 +229,7 @@ func spawn_point() -> Vector2:
 func _draw() -> void:
 	_draw_ground()
 	_draw_aprons()
+	_draw_courtyards()
 	_draw_paths()
 	_draw_beds()
 	_draw_garden()
@@ -194,7 +241,6 @@ func _draw() -> void:
 	_draw_top_garden()
 	_draw_landscape()
 	_draw_shadows()
-	_draw_buildings()
 	_draw_boundary()
 	_draw_ground_details()
 
@@ -276,10 +322,40 @@ func _draw_aprons() -> void:
 			var r := Rect2(part.position * TILE, part.size * TILE).grow(32)
 			draw_texture_rect(tex, r, true)
 			draw_rect(Rect2(r.position + Vector2(1, 1), r.size - Vector2(2, 2)), Color(0, 0, 0, 0.08), false, 2.0)
+			if part.size.x * TILE > 200:
+				var pos := Vector2(part.get_center().x * TILE, part.end.y * TILE)
+				draw_texture_rect(_paving_tex, Rect2(pos + Vector2(-76, -2), Vector2(152, 58)), true)
+
+
+
+func _draw_courtyards() -> void:
+	for building: Dictionary in _buildings:
+		if building.get("style") != "u3d":
+			continue
+		var upper: Rect2i = building["parts"][0]
+		var lower: Rect2i = building["parts"][1]
+		var link: Rect2i = building["parts"][2]
+		var yard := Rect2(Vector2(link.end.x, upper.end.y) * TILE, Vector2(upper.end.x - link.end.x, lower.position.y - upper.end.y) * TILE)
+		if building["id"] == "teach_c1":
+			# A warm stone display court beneath the sand-filled sailing boat.
+			var center := yard.get_center() + Vector2(0, 36)
+			draw_rect(Rect2(center - Vector2(154, 48) + Vector2(3, 4), Vector2(308, 96)), Color("36483b", 0.2))
+			draw_texture_rect(_paving_tex, Rect2(center - Vector2(154, 48), Vector2(308, 96)), true)
+			draw_rect(Rect2(center - Vector2(154, 48), Vector2(308, 96)), Color("b59a76"), false, 2)
+		else:
+			# Narrow planted borders keep the larger courts human in scale.
+			for side in [-1, 1]:
+				var y: float = yard.get_center().y + side * (yard.size.y * 0.5 - 48)
+				for x in range(int(yard.position.x) + 34, int(yard.end.x) - 20, 36):
+					_draw_flower(Vector2(x, y), Color("eac7b1") if side < 0 else Color("dac68c"))
 
 
 func _is_path(cell: Vector2i) -> bool:
 	return _path_cells.has(cell)
+
+
+func _is_ring_path(path: Rect2i) -> bool:
+	return path.position.x == 22 or path.position.x == 372 or path.position.y == 20 or path.position.y == 150
 
 
 func _draw_paths() -> void:
@@ -289,7 +365,7 @@ func _draw_paths() -> void:
 			for x in range(path.position.x, path.end.x):
 				var cell := Vector2i(x, y)
 				var px := Vector2(x * TILE, y * TILE)
-				draw_texture_rect_region(tex, Rect2(px, Vector2(TILE, TILE)), _tile_rects["asphalt"])
+				draw_texture_rect_region(tex, Rect2(px, Vector2(TILE, TILE)), _tile_rects["asphalt" if _is_ring_path(path) else "paving"])
 				# 路缘石：受光顶面 + 竖直侧面 + 落下投影，做出 2px 高差
 				if not _is_path(cell + Vector2i(0, -1)):
 					draw_rect(Rect2(px.x, px.y, TILE, 1), Color("ece6d8"))
@@ -304,11 +380,12 @@ func _draw_paths() -> void:
 				if not _is_path(cell + Vector2i(1, 0)):
 					draw_rect(Rect2(px.x + TILE - 2, px.y, 2, TILE), Color("b6b0a2"))
 					draw_rect(Rect2(px.x + TILE - 1, px.y, 1, TILE), Color(0.14, 0.11, 0.16, 0.38))
+	# 环路车行标线；内部为石铺步道。
 	# 中央虚线
 	for path: Rect2i in _paths:
 		var horizontal := path.size.x >= path.size.y
 		var length := maxi(path.size.x, path.size.y)
-		if length < 16:
+		if length < 16 or not _is_ring_path(path):
 			continue
 		if horizontal:
 			var cy := (path.position.y + path.size.y * 0.5) * TILE
@@ -369,32 +446,46 @@ func _draw_ground_details() -> void:
 # 花园（中轴对称 + 两片 X 形花坛）
 # =====================================================================
 
-func _draw_beds() -> void:
-	# 沿路的小花坛，填补大片草坪的空
-	var flowers := [Color("e8b3c8"), Color("f2e9a8"), Color("e07070"), Color("a8c8f0")]
+func _build_flower_beds() -> void:
 	for path: Rect2i in _paths:
 		var horizontal := path.size.x >= path.size.y
-		var count := int(path.size.x / 15.0) if horizontal else int(path.size.y / 15.0)
+		var count := int(maxi(path.size.x, path.size.y) / 15.0)
 		for i in range(1, count):
-			var cell: Vector2i
-			if horizontal:
-				cell = Vector2i(path.position.x + i * 15, path.position.y - 2)
-			else:
-				cell = Vector2i(path.position.x - 2, path.position.y + i * 15)
-			if not _free(cell):
-				continue
-			if _garden.grow(2).has_point(cell):
-				continue
-			var r := Rect2(cell.x * TILE - 12, cell.y * TILE - 6, 40, 24)
-			draw_rect(Rect2(r.position + Vector2(2, 2), r.size), Color(0.10, 0.14, 0.08, 0.18))
-			draw_rect(r, Color("6b4a2c"))
-			draw_rect(Rect2(r.position + Vector2(2, 2), r.size - Vector2(4, 4)), Color("4b3220"))
-			draw_rect(Rect2(r.position + Vector2(2, 2), Vector2(r.size.x - 4, 1)), Color("8a5f38"))
-			for f in 3:
-				var fp := r.position + Vector2(7 + f * 11, 8)
-				draw_rect(Rect2(fp + Vector2(0, 3), Vector2(1, 4)), Color("4f8a46"))
-				draw_rect(Rect2(fp + Vector2(-2, -2), Vector2(5, 5)), flowers[(i + f) % flowers.size()])
-				draw_rect(Rect2(fp + Vector2(-1, -1), Vector2(1, 1)), Color("f6f0c8"))
+			var cell := Vector2i(path.position.x + i * 15, path.position.y - 2) if horizontal else Vector2i(path.position.x - 2, path.position.y + i * 15)
+			var r := Rect2(cell.x * TILE - 12, cell.y * TILE - 6, 40, 22)
+			var clear := not _garden.grow(2).has_point(cell)
+			for corner in [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y), r.get_center()]:
+				if not _free(Vector2i(Vector2(corner) / TILE)) or is_walkway(corner):
+					clear = false
+				for excluded: Rect2 in _plant_exclusions:
+					if excluded.has_point(corner):
+						clear = false
+			if clear:
+				_beds.append(r)
+				_plant_exclusions.append(r.grow(8))
+				_add_solid(r)
+
+
+func _draw_beds() -> void:
+	for r: Rect2 in _beds:
+		draw_rect(Rect2(r.position + Vector2(2, 3), r.size), Color("304431", 0.2))
+		draw_rect(r, Color("9d7958"))
+		draw_rect(r.grow(-2), Color("5e5440"))
+		draw_rect(Rect2(r.position, Vector2(r.size.x, 1)), Color("d3b084"))
+		for i in 5:
+			_draw_flower(r.position + Vector2(5 + i * 7, 10 + i % 2 * 3), [Color("eeb2a6"), Color("efda93"), Color("b7b5d9")][i % 3])
+
+
+func _draw_flower(pos: Vector2, color: Color) -> void:
+	var p := pos.floor()
+	draw_rect(Rect2(p + Vector2(0, 1), Vector2(1, 5)), Color("496d42"))
+	draw_rect(Rect2(p + Vector2(-3, 3), Vector2(3, 2)), Color("91ad60"))
+	draw_rect(Rect2(p + Vector2(1, 2), Vector2(2, 2)), Color("577c49"))
+	draw_rect(Rect2(p + Vector2(-1, -3), Vector2(2, 5)), color)
+	draw_rect(Rect2(p + Vector2(-3, -1), Vector2(6, 2)), color)
+	draw_rect(Rect2(p + Vector2(-2, -2), Vector2(2, 1)), color.lightened(0.12))
+	draw_rect(Rect2(p + Vector2(-1, -1), Vector2(2, 2)), Color("bd9452"))
+	draw_rect(Rect2(p + Vector2(-1, -1), Vector2(1, 1)), Color("fae5a2"))
 
 
 func _draw_garden() -> void:
@@ -424,8 +515,8 @@ func _draw_garden() -> void:
 	# 两片 X 形花林：窄人行小道（2 格），其余留给草木
 	var zone_w := 32.0 * TILE
 	var zone_h := 20.0 * TILE
-	_draw_x_walk(Vector2(px.position.x + 18.0 * TILE, c.y), zone_w, zone_h)
-	_draw_x_walk(Vector2(px.end.x - 18.0 * TILE, c.y), zone_w, zone_h)
+	for center: Vector2 in _garden_walk_centers():
+		_draw_x_walk(center, zone_w, zone_h)
 	_draw_garden_plants()
 	# 中央环形广场（抬高 2px，带落影）
 	_ellipse(c + Vector2(3, 6), Vector2(86, 86), Color(0.16, 0.12, 0.18, 0.22))
@@ -463,12 +554,22 @@ func _draw_x_walk(center: Vector2, w: float, h: float) -> void:
 	for corner: Vector2 in corners:
 		draw_line(corner, center, Color("8f897b"), 44.0)
 		draw_line(corner, center, Color("c9c2b0"), 38.0)
-		draw_line(corner, center, Color("ddd6c4"), 32.0)
+		draw_line(corner, center, Color("e3cfac"), 32.0)
+		var tangent := (center - corner).normalized()
+		var normal := Vector2(-tangent.y, tangent.x)
+		for step in range(28, int(corner.distance_to(center)) - 20, 22):
+			var p := corner + tangent * step
+			draw_line((p - normal * 14).floor(), (p + normal * 14).floor(), Color("c9b294"), 1)
 		# 圆角收头，避免岔口露出尖角
 		draw_circle(corner, 19.0, Color("c9c2b0"))
 		draw_circle(corner, 16.0, Color("ddd6c4"))
 	draw_circle(center, 22.0, Color("c9c2b0"))
 	draw_circle(center, 18.0, Color("ddd6c4"))
+
+
+func _garden_walk_centers() -> Array[Vector2]:
+	var px := Rect2(_garden.position * TILE, _garden.size * TILE)
+	return [Vector2(px.position.x + 18 * TILE, px.get_center().y), Vector2(px.end.x - 18 * TILE, px.get_center().y)]
 
 
 func _on_garden_walk(p: Vector2) -> bool:
@@ -479,12 +580,13 @@ func _on_garden_walk(p: Vector2) -> bool:
 	if not px.has_point(p):
 		return false
 	var c := px.get_center()
+	if p.x < px.position.x + 32 or p.x >= px.end.x - 32 or p.y < px.position.y + 32 or p.y >= px.end.y - 32:
+		return true
 	if absf(p.x - c.x) < 100.0:
 		return true
 	if p.distance_to(c) < 88.0:
 		return true
-	for side in [-1.0, 1.0]:
-		var zc := Vector2(c.x + float(side) * 18.0 * TILE, c.y)
+	for zc: Vector2 in _garden_walk_centers():
 		var rect := Rect2(zc - Vector2(16.0 * TILE, 10.0 * TILE), Vector2(32.0 * TILE, 20.0 * TILE))
 		if not rect.has_point(p):
 			continue
@@ -508,31 +610,23 @@ func _on_garden_walk(p: Vector2) -> bool:
 
 
 func _draw_garden_plants() -> void:
-	## 花林底层：散落的花丛、草簇和小灌木，避开步道。
 	var px := Rect2(_garden.position * TILE, _garden.size * TILE)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 9173
-	var petals := [Color("e8b3c8"), Color("f2e9a8"), Color("e07070"), Color("a8c8f0"), Color("d9a0e0"), Color("f0c8a0")]
-	for i in 170:
-		var p := Vector2(rng.randf_range(px.position.x + 20, px.end.x - 20), rng.randf_range(px.position.y + 20, px.end.y - 20))
-		if _on_garden_walk(p) or _is_path(Vector2i(int(p.x / TILE), int(p.y / TILE))):
+	var petals := [Color("e9b2ac"), Color("eee0a7"), Color("c88078"), Color("b3bddc"), Color("c8a2ca")]
+	for i in 100:
+		var p := Vector2(rng.randf_range(px.position.x + 28, px.end.x - 28), rng.randf_range(px.position.y + 28, px.end.y - 28)).floor()
+		if is_walkway(p) or is_walkway(p + Vector2(8, 5)):
 			continue
-		var c: Color = petals[i % petals.size()]
-		draw_rect(Rect2(p + Vector2(0, 2), Vector2(1, 4)), Color("4f8a46"))
-		draw_rect(Rect2(p + Vector2(-2, -1), Vector2(5, 4)), c)
-		draw_rect(Rect2(p + Vector2(-1, 0), Vector2(1, 1)), Color("f6f0c8"))
-	for i in 120:
-		var p2 := Vector2(rng.randf_range(px.position.x + 20, px.end.x - 20), rng.randf_range(px.position.y + 20, px.end.y - 20))
-		if _on_garden_walk(p2) or _is_path(Vector2i(int(p2.x / TILE), int(p2.y / TILE))):
+		_draw_flower(p, petals[i % petals.size()])
+		if i % 3 == 0:
+			_draw_flower(p + Vector2(6, 5), petals[i % petals.size()])
+	for i in 45:
+		var p := Vector2(rng.randf_range(px.position.x + 28, px.end.x - 28), rng.randf_range(px.position.y + 28, px.end.y - 28)).floor()
+		if is_walkway(p):
 			continue
-		draw_rect(Rect2(p2, Vector2(2, 1)), Color("7a8a4a"))
-		draw_rect(Rect2(p2 + Vector2(1, -1), Vector2(1, 2)), Color("5a6a36"))
-	for i in 26:
-		var p3 := Vector2(rng.randf_range(px.position.x + 24, px.end.x - 24), rng.randf_range(px.position.y + 24, px.end.y - 24))
-		if _on_garden_walk(p3) or _is_path(Vector2i(int(p3.x / TILE), int(p3.y / TILE))):
-			continue
-		_ellipse(p3, Vector2(9, 6), Color("4a5a32"))
-		_ellipse(p3 + Vector2(-2, -2), Vector2(6, 4), Color("60703c"))
+		draw_rect(Rect2(p, Vector2(3, 1)), Color("93b161"))
+		draw_rect(Rect2(p + Vector2(1, -2), Vector2(1, 3)), Color("4f7845"))
 
 
 func _draw_hedge_rect(r: Rect2i) -> void:
@@ -553,22 +647,32 @@ func _draw_track() -> void:
 	var half_w := px.size.x * 0.5
 	var half_straight := maxf(0.0, (px.size.y - px.size.x) * 0.5)
 	var outer_r := half_w
-	var lane_w := 12.0
-	var band := lane_w * 8.0
+	var lane_w := TRACK_LANE_WIDTH
+	var band := lane_w * TRACK_LANES
 	var inner_r := outer_r - band
 
 	draw_rect(px, Color("5f8f3d"))
 	_fill_stadium(c, outer_r, half_straight, Color("b2544a"))
 	_fill_stadium(c, inner_r, half_straight, Color("5f9a45"))
-	for i in range(0, 9):
+	# Fine rubber granules follow the actual oval rather than a rectangular tile.
+	for i in 1500:
+		var p := (px.position + Vector2(fmod(i * 73.19, px.size.x), fmod(i * 137.41, px.size.y))).floor()
+		var spine := Vector2(c.x, clampf(p.y, c.y - half_straight, c.y + half_straight))
+		var distance := p.distance_to(spine)
+		if distance > inner_r + 3 and distance < outer_r - 3:
+			draw_rect(Rect2(p, Vector2(1, 1)), Color("cd7963", 0.5) if i % 2 else Color("91483f", 0.35))
+	for i in range(0, TRACK_LANES + 1):
 		var r := outer_r - lane_w * i
-		_stroke_stadium(c, r, half_straight, Color(0.94, 0.92, 0.86, 0.55), 1.4)
+		_stroke_stadium(c, r, half_straight, Color(0.94, 0.92, 0.86, 0.75), 2.0)
 	_stroke_stadium(c, outer_r, half_straight, Color(0.96, 0.94, 0.88, 0.85), 2.0)
 
 	var pitch_w := inner_r * 1.62
 	var pitch_h := (half_straight * 2.0) + inner_r * 1.55
 	var pitch := Rect2(c - Vector2(pitch_w, pitch_h) * 0.5, Vector2(pitch_w, pitch_h))
 	var white := Color(0.95, 0.96, 0.90, 0.85)
+	for stripe in 10:
+		var strip := Rect2(pitch.position + Vector2(0, stripe * pitch.size.y / 10), Vector2(pitch.size.x, pitch.size.y / 10))
+		draw_rect(strip, Color("679b48") if stripe % 2 else Color("609241"))
 	draw_rect(pitch, white, false, 2.0)
 	draw_line(Vector2(pitch.position.x, c.y), Vector2(pitch.end.x, c.y), white, 2.0)
 	draw_arc(c, 62.0, 0, TAU, 40, white, 2.0)
@@ -583,6 +687,13 @@ func _draw_track() -> void:
 		draw_rect(small, white, false, 2.0)
 		draw_circle(Vector2(c.x, goal_y - float(dir) * 78.0), 3.0, white)
 		draw_rect(Rect2(c.x - 46, minf(goal_y, goal_y + float(dir) * 8.0), 92, 8), Color(0.92, 0.92, 0.86, 0.9))
+		var net := Rect2(c.x - 46, goal_y if dir > 0 else goal_y - 20, 92, 20)
+		draw_rect(Rect2(net.position + Vector2(3, 4), net.size), Color("334b37", 0.18))
+		draw_rect(net, Color("dddcc4"), false, 2)
+		for x in range(int(net.position.x) + 6, int(net.end.x), 8):
+			draw_line(Vector2(x, net.position.y), Vector2(x, net.end.y), Color("d6dcc1", 0.5), 1)
+		for y in range(int(net.position.y) + 5, int(net.end.y), 5):
+			draw_line(Vector2(net.position.x, y), Vector2(net.end.x, y), Color("d6dcc1", 0.5), 1)
 	draw_rect(Rect2(px.position - Vector2(6, 6), px.size + Vector2(12, 12)), Color(0.12, 0.20, 0.10, 0.12), false, 6.0)
 
 
@@ -703,6 +814,13 @@ func _draw_pond() -> void:
 	_ellipse(c, px.size * 0.40, Color("4f97c4"))
 	_ellipse(c, px.size * 0.36, Color("5fa8d0"))
 	_ellipse(c + Vector2(-18, -14), Vector2(26, 12), Color(0.70, 0.88, 0.96, 0.35))
+	for i in 5:
+		var leaf := (c + Vector2(sin(i * 7.1) * 38, cos(i * 4.3) * 50)).floor()
+		_ellipse(leaf + Vector2(1, 1), Vector2(6, 3), Color("386f61"))
+		_ellipse(leaf, Vector2(5, 2), Color("84af75"))
+		draw_rect(Rect2(leaf, Vector2(2, 1)), Color("b9ce8e"))
+		if i % 2 == 0:
+			_draw_flower(leaf - Vector2(0, 2), Color("f1c5c0"))
 	# 白色铁栅栏（小）
 	var white := Color("e9e9e1")
 	var x0 := px.position.x + 6
@@ -727,43 +845,62 @@ func _draw_pond() -> void:
 
 
 func _draw_straight_track() -> void:
-	## 操场右侧的直跑道：4 条直道，带分道线和起终点线。
+	## The sprint straight shares the oval's right-hand eight lanes and extends both ends.
 	if _straight_track.size.x <= 0:
 		return
 	var px := Rect2(_straight_track.position * TILE, _straight_track.size * TILE)
-	draw_rect(px, Color("b45a4a"))
-	draw_rect(Rect2(px.position, Vector2(px.size.x, 4)), Color("c46a56"))
-	var lanes := 4
-	var lw := px.size.x / float(lanes)
-	for i in range(1, lanes):
-		draw_line(Vector2(px.position.x + i * lw, px.position.y + 10), Vector2(px.position.x + i * lw, px.end.y - 10), Color(0.96, 0.94, 0.86, 0.85), 1.5)
-	draw_rect(px, Color("e8e2d0"), false, 2.0)
-	draw_rect(Rect2(px.position.x, px.position.y + 12, px.size.x, 6), Color("f2eee2"))
-	draw_rect(Rect2(px.position.x, px.end.y - 18, px.size.x, 6), Color("f2eee2"))
+	draw_rect(px, Color("b2544a"))
+	var white := Color("eee7d5")
+	for i in range(TRACK_LANES + 1):
+		var x := px.position.x + i * TRACK_LANE_WIDTH
+		draw_line(Vector2(x, px.position.y), Vector2(x, px.end.y), Color(white, 0.85), 2)
+	for i in 480:
+		var p := (px.position + Vector2(fmod(i * 19.13, px.size.x), fmod(i * 67.7, px.size.y))).floor()
+		draw_rect(Rect2(p, Vector2(1, 1)), Color("cd7963", 0.3))
+	for end in [-1, 1]:
+		var y := px.position.y + 34 if end < 0 else px.end.y - 34
+		draw_rect(Rect2(px.position.x, y, px.size.x, 2), white)
+		for lane in TRACK_LANES:
+			var x := px.position.x + lane * TRACK_LANE_WIDTH + 3
+			draw_string(ThemeDB.fallback_font, Vector2(x, y + 12 if end < 0 else y - 4), str(TRACK_LANES - lane), HORIZONTAL_ALIGNMENT_LEFT, -1, 7, white)
+	# Subtle end strips read as run-off areas, with no separate lane box beside the oval.
+	draw_rect(Rect2(px.position, Vector2(px.size.x, 5)), Color("9e4d43"))
+	draw_rect(Rect2(px.position.x, px.end.y - 5, px.size.x, 5), Color("9e4d43"))
+
+
+func _lavender_beds() -> Array[Rect2]:
+	var c := Vector2(_top_garden.position * TILE) + Vector2(_top_garden.size * TILE) * 0.5
+	var beds: Array[Rect2] = []
+	for side in [-1, 1]:
+		for row in [-1, 1]:
+			beds.append(Rect2(c + Vector2(side * 145 - 70, row * 150 - 52), Vector2(140, 104)))
+	return beds
 
 
 func _draw_top_garden() -> void:
-	## 右上角花园：凉亭 + 薰衣草花田 + 碎石小径（原实验楼位置）。
 	if _top_garden.size.x <= 0:
 		return
 	var px := Rect2(_top_garden.position * TILE, _top_garden.size * TILE)
-	draw_texture_rect(PixelArt.tile_texture("lawn"), px, true)
-	# 碎石环形小径
 	var c := px.get_center()
-	_ellipse(c, Vector2(px.size.x * 0.30, px.size.y * 0.26), Color("b9b2a0"))
-	_ellipse(c, Vector2(px.size.x * 0.28, px.size.y * 0.24), Color("cfc9bb"))
-	# 薰衣草花田：四条带状
-	for i in 4:
-		var by := px.position.y + 24 + i * (px.size.y - 60) / 4.0
-		draw_rect(Rect2(px.position.x + 20, by, px.size.x - 40, 14), Color("6a6a7a"))
-		var fx := px.position.x + 24.0
-		while fx < px.end.x - 24.0:
-			draw_rect(Rect2(fx, by + 4, 2, 6), Color("5a7a4a"))
-			_ellipse(Vector2(fx + 1, by + 3), Vector2(4, 5), Color("8f76c8"))
-			_ellipse(Vector2(fx + 1, by + 2), Vector2(2, 3), Color("b49ae0"))
-			fx += 11.0
-	# 花境
-	draw_rect(Rect2(px.position.x + 10, px.position.y + 10, px.size.x - 20, 4), Color("6b4a2c"))
+	draw_texture_rect(PixelArt.tile_texture("lawn"), px, true)
+	# A stroll garden with four lavender beds and a connected pavilion plaza.
+	_ellipse(c + Vector2(0, 3), px.size * Vector2(0.36, 0.32), Color("597344"))
+	_ellipse(c, px.size * Vector2(0.36, 0.32), Color("b9a184"))
+	_ellipse(c, px.size * Vector2(0.35, 0.31), Color("e4cfaa"))
+	_ellipse(c, px.size * Vector2(0.30, 0.26), PixelArt.GRASS)
+	draw_texture_rect(_paving_tex, Rect2(c.x - 24, px.position.y, 48, px.size.y), true)
+	draw_texture_rect(_paving_tex, Rect2(px.position.x, c.y - 24, px.size.x, 48), true)
+	_ellipse(c, Vector2(65, 48), Color("d0b18a"))
+	_ellipse(c, Vector2(60, 43), Color("e7d3af"))
+	for bed: Rect2 in _lavender_beds():
+		draw_rect(bed, Color("89946a"))
+		draw_rect(bed.grow(-3), Color("677a55"))
+		for y in range(10, 100, 15):
+			for x in range(10, 136, 12):
+				var p := bed.position + Vector2(x + (y % 2) * 3, y)
+				draw_rect(Rect2(p, Vector2(1, 7)), Color("4c7354"))
+				draw_rect(Rect2(p + Vector2(-2, -4), Vector2(4, 6)), Color("8b79ae"))
+				draw_rect(Rect2(p + Vector2(-1, -4), Vector2(2, 3)), Color("c4b0d4"))
 
 
 func _draw_landscape() -> void:
@@ -772,11 +909,12 @@ func _draw_landscape() -> void:
 		return
 	var px := Rect2(_landscape.position * TILE, _landscape.size * TILE)
 	# 草坪与碎石铺边
-	draw_rect(px, Color("6f7a48"))
+	draw_texture_rect(PixelArt.tile_texture("lawn"), px, true)
 	draw_rect(Rect2(px.position.x, px.end.y - 6, px.size.x, 6), Color("b9b2a0"))
 	# 小湖
 	var lake_c := Vector2(px.position.x + px.size.x * 0.62, px.position.y + px.size.y * 0.58)
 	_ellipse(lake_c + Vector2(3, 4), Vector2(78, 44), Color(0.16, 0.12, 0.18, 0.18))
+	_ellipse(lake_c, Vector2(81, 47), Color("bba581"))
 	_ellipse(lake_c, Vector2(76, 42), Color("4f97c4"))
 	_ellipse(lake_c, Vector2(68, 36), Color("5fa8d0"))
 	_ellipse(lake_c + Vector2(-14, -10), Vector2(24, 12), Color(0.72, 0.9, 0.98, 0.35))
@@ -786,8 +924,11 @@ func _draw_landscape() -> void:
 		var off := Vector2(-30 + i * 20, 18 - i * 6)
 		var r := 20 - i * 3
 		_ellipse(rock_c + off + Vector2(3, 4), Vector2(r * 1.1, r * 0.6), Color(0.16, 0.12, 0.18, 0.20))
-		_ellipse(rock_c + off, Vector2(r, r * 0.75), Color("8f8a80"))
-		_ellipse(rock_c + off + Vector2(-4, -4), Vector2(r * 0.55, r * 0.4), Color("b2ada2"))
+		var p := (rock_c + off).floor()
+		var outline := PackedVector2Array([p + Vector2(-r, 2), p + Vector2(-r * 0.6, -r * 0.6), p + Vector2(r * 0.2, -r * 0.8), p + Vector2(r * 0.8, -r * 0.3), p + Vector2(r, r * 0.4), p + Vector2(r * 0.2, r * 0.7), p + Vector2(-r * 0.6, r * 0.5)])
+		draw_colored_polygon(outline, Color("848b80"))
+		draw_colored_polygon(PackedVector2Array([outline[0], outline[1], outline[2], p]), Color("c5c7ad"))
+		draw_polyline(PackedVector2Array([outline[2], p, outline[5]]), Color("666f66"), 1)
 	# 灌木/草
 	for i in 8:
 		var p := Vector2(px.position.x + 10 + i * 26, px.end.y - 16 - (i % 3) * 8)
@@ -799,342 +940,17 @@ func _draw_landscape() -> void:
 # 建筑（全部 5 层）
 # =====================================================================
 
-func _draw_buildings() -> void:
-	for b: Variant in _buildings:
-		var building: Dictionary = b
-		var parts: Array = building["parts"]
-		var sorted := parts.duplicate()
-		sorted.sort_custom(func(a, b2): return (a as Rect2i).position.y < (b2 as Rect2i).position.y)
-		for part: Rect2i in sorted:
-			_draw_part(part, building)
+func _spawn_buildings() -> void:
+	for b: Dictionary in _buildings:
+		for part: Rect2i in b["parts"]:
+			var visual := preload("res://scripts/art/campus_building.gd").new()
+			visual.part = part
+			visual.building = b
+			visual.position = Vector2(part.get_center().x * TILE, part.end.y * TILE)
+			visual.name = "Building_%s" % str(b.get("id", "campus"))
+			visual.add_to_group("campus_buildings")
+			get_parent().add_child.call_deferred(visual)
 
-
-func _draw_glass_link(px: Rect2) -> void:
-	## 两栋楼之间的玻璃连廊：屋顶是玻璃网格，边框是深色金属。
-	draw_rect(Rect2(px.position + Vector2(4, 5), px.size), Color(0.06, 0.09, 0.08, 0.22))
-	draw_rect(px, Color("5f7a88"))
-	draw_rect(Rect2(px.position + Vector2(2, 2), px.size - Vector2(4, 4)), Color("a8c8d4"))
-	draw_rect(Rect2(px.position + Vector2(2, 2), Vector2(px.size.x - 4, 3)), Color("d8ecf4"))
-	for i in range(1, 4):
-		draw_rect(Rect2(px.position.x + i * px.size.x / 4.0 - 1, px.position.y + 2, 2, px.size.y - 4), Color("6f8b98"))
-	for j in range(1, 3):
-		draw_rect(Rect2(px.position.x + 2, px.position.y + j * px.size.y / 3.0, px.size.x - 4, 1), Color("6f8b98"))
-	draw_rect(px, Color("3f5a68"), false, 2.0)
-
-
-func _draw_gym(px: Rect2, b: Dictionary) -> void:
-	## 大体育馆：大矩形 + 内凹双坡屋顶（左右两端高，向中间下凹成倒三角），
-	## 左右两馆（体育馆 / 游泳馆），各一个入口、一排天窗。
-	var wall := Color(str(b.get("wall", "#d9d4c8")))
-	var roof := Color(str(b.get("roof", "#7d8a92")))
-	var glass := Color(str(b.get("window", "#6f93b0")))
-	var wood := Color("8a6a44")
-	var facade_h := 130.0
-	var base_eave := px.end.y - facade_h
-	var roof_top := px.position.y + 3.0
-	var dip := 52.0
-	var mid_x := px.get_center().x
-	var x0 := px.position.x
-	var x1 := px.end.x
-	var half := px.size.x * 0.5
-	# 1) 墙体先整块铺，屋顶多边形会把上沿切成 V 形
-	draw_texture_rect(_wall_tex, Rect2(x0, base_eave, px.size.x, facade_h), true, wall)
-	# 2) 左右两坡：靠中间低，形成内凹的倒三角
-	var left_poly := PackedVector2Array([
-		Vector2(x0, roof_top), Vector2(mid_x, roof_top),
-		Vector2(mid_x, base_eave + dip), Vector2(x0, base_eave),
-	])
-	var right_poly := PackedVector2Array([
-		Vector2(mid_x, roof_top), Vector2(x1, roof_top),
-		Vector2(x1, base_eave), Vector2(mid_x, base_eave + dip),
-	])
-	draw_colored_polygon(left_poly, roof.lightened(0.12))
-	draw_colored_polygon(right_poly, roof.darkened(0.16))
-	# 3) 瓦面纹理与瓦垄（只落在完整屋顶带内）
-	var shingle := PixelArt.tile_texture("roof_shingle")
-	draw_texture_rect(shingle, Rect2(x0, roof_top, px.size.x, base_eave - roof_top), true, roof.lightened(0.02))
-	var ry := roof_top + 10.0
-	while ry < base_eave - 4.0:
-		draw_rect(Rect2(x0, ry, px.size.x, 1), roof.darkened(0.24))
-		ry += 14.0
-	# 4) 两端向中间的渐变，强化“内凹”
-	var bands := 12
-	for i in bands:
-		var t := float(i) / float(bands)
-		var bw := half / float(bands)
-		draw_rect(Rect2(x0 + half * t, roof_top, bw, base_eave - roof_top), Color(0, 0, 0, 0.22 * t))
-		draw_rect(Rect2(mid_x + half * t, roof_top, bw, base_eave - roof_top), Color(0, 0, 0, 0.22 * (1.0 - t)))
-	# 5) 谷底线：暗槽 + 左侧受光边
-	draw_rect(Rect2(mid_x - 3, roof_top, 6, base_eave + dip - roof_top), roof.darkened(0.42))
-	draw_rect(Rect2(mid_x - 4, roof_top, 1, base_eave + dip - roof_top), roof.lightened(0.22))
-	# 6) V 形檐口 + 顶部水平檐
-	draw_polyline(PackedVector2Array([Vector2(x0, base_eave), Vector2(mid_x, base_eave + dip), Vector2(x1, base_eave)]), roof.darkened(0.42), 3.0)
-	draw_polyline(PackedVector2Array([Vector2(x0, base_eave - 2), Vector2(mid_x, base_eave + dip - 2), Vector2(x1, base_eave - 2)]), roof.lightened(0.20), 1.0)
-	draw_rect(Rect2(x0, roof_top, px.size.x, 5), roof.darkened(0.34))
-	# 7) 两端高点收头
-	for side in [-1.0, 1.0]:
-		var ex := x0 if side < 0.0 else x1 - 10.0
-		draw_rect(Rect2(ex, roof_top, 10, base_eave - roof_top), roof.lightened(0.10) if side < 0.0 else roof.darkened(0.20))
-		draw_rect(Rect2(ex, roof_top, 1, base_eave - roof_top), Color("241f1a", 0.45))
-	# 8) 天窗：左右各一排
-	for side in [-1.0, 1.0]:
-		var cxx: float = mid_x + float(side) * px.size.x * 0.24
-		var sky_y := roof_top + 34.0
-		draw_rect(Rect2(cxx - 62, sky_y, 124, 30), Color("3f4b52"))
-		draw_rect(Rect2(cxx - 60, sky_y + 2, 120, 26), Color("9fc4d4"))
-		draw_rect(Rect2(cxx - 60, sky_y + 2, 120, 3), Color("cfe6ef"))
-		var sx: float = cxx - 60.0
-		while sx < cxx + 58.0:
-			draw_rect(Rect2(sx, sky_y + 2, 1, 26), Color("6f8b98"))
-			sx += 15.0
-	# 9) 立面玻璃带（V 形最低点以下，避免被屋面盖住）
-	var glass_top := base_eave + dip + 8.0
-	for f in 2:
-		var by := glass_top + f * 34.0
-		draw_rect(Rect2(x0 + 22, by, px.size.x - 44, 20), wall.darkened(0.38))
-		draw_rect(Rect2(x0 + 23, by + 1, px.size.x - 46, 18), glass)
-		draw_rect(Rect2(x0 + 23, by + 1, px.size.x - 46, 2), glass.lightened(0.25))
-		var gx := x0 + 23.0
-		while gx < x1 - 23.0:
-			draw_rect(Rect2(gx, by + 1, 1, 18), wall.darkened(0.42))
-			gx += 26.0
-	# 檐下阴影
-	draw_rect(Rect2(x0, base_eave + dip, px.size.x, 3), Color(0.12, 0.10, 0.09, 0.20))
-	# 10) 两个入口 + 雨棚 + 台阶
-	for side in [-1.0, 1.0]:
-		var ex2: float = mid_x + float(side) * px.size.x * 0.24
-		_draw_entrance(Vector2(ex2, px.end.y), wall, glass)
-		draw_rect(Rect2(ex2 - 28, glass_top - 12, 56, 5), wood)
-		draw_rect(Rect2(ex2 - 28, glass_top - 12, 56, 1), wood.lightened(0.3))
-	# 11) 描边 + 根部 AO
-	draw_rect(Rect2(px.position + Vector2(0.5, 0.5), px.size - Vector2(1, 1)), Color("241f1a", 0.55), false, 1.5)
-	draw_rect(Rect2(x0 - 3, px.end.y, px.size.x + 6, 6), Color(0.16, 0.12, 0.18, 0.24))
-	draw_rect(Rect2(x0 - 3, px.end.y + 6, px.size.x + 6, 4), Color(0.16, 0.12, 0.18, 0.12))
-
-
-func _draw_part(r: Rect2i, b: Dictionary) -> void:
-	if r.size.x <= 0 or r.size.y <= 0:
-		return
-	var px := Rect2(r.position * TILE, r.size * TILE)
-	var wall := Color(str(b.get("wall", "#e0d6c0")))
-	var roof := Color(str(b.get("roof", "#9a9384")))
-	var glass := Color(str(b.get("window", "#6f93b0")))
-	var balcony := bool(b.get("balcony", false))
-	var style := str(b.get("style", "slab"))
-
-	if style == "glass":
-		_draw_glass_link(px)
-		return
-	if style == "gym":
-		_draw_gym(px, b)
-		return
-
-	var facade_h := clampf(px.size.y * 0.5, 78.0, 118.0)
-	if style == "u3d":
-		facade_h = clampf(px.size.y * 0.52, 62.0, 96.0)
-	facade_h = minf(facade_h, px.size.y - 18.0)
-	if px.size.y < 60.0:
-		facade_h = px.size.y * 0.55
-	var roof_h := px.size.y - facade_h
-	var roof_rect := Rect2(px.position + Vector2(0, 2), Vector2(px.size.x, maxf(roof_h - 2.0, 4.0)))
-	var face_rect := Rect2(px.position + Vector2(0, roof_h), Vector2(px.size.x, facade_h))
-
-	draw_rect(Rect2(px.position + Vector2(7, 9), px.size), Color(0.06, 0.09, 0.06, 0.20))
-
-	if style == "gable":
-		draw_texture_rect(PixelArt.tile_texture("roof_shingle"), roof_rect, true, roof)
-		var ridge_y := roof_rect.position.y + roof_rect.size.y * 0.42
-		draw_rect(Rect2(roof_rect.position.x, ridge_y - 1, roof_rect.size.x, 3), roof.lightened(0.30))
-		# 四坡明暗，避免变成一块红色平板
-		draw_rect(Rect2(roof_rect.position.x, roof_rect.position.y, roof_rect.size.x, 6), roof.lightened(0.12))
-		draw_rect(Rect2(roof_rect.position.x, roof_rect.end.y - 8, roof_rect.size.x, 8), roof.darkened(0.24))
-		draw_rect(Rect2(roof_rect.position.x, roof_rect.position.y, 8, roof_rect.size.y), roof.lightened(0.06))
-		draw_rect(Rect2(roof_rect.end.x - 8, roof_rect.position.y, 8, roof_rect.size.y), roof.darkened(0.18))
-	elif style == "u3d":
-		# 三角坡顶：屋脊在中间，两端三角山墙
-		var ridge_y2 := roof_rect.position.y + roof_rect.size.y * 0.46
-		var sh2 := PixelArt.tile_texture("roof_shingle")
-		draw_texture_rect(sh2, Rect2(roof_rect.position, Vector2(roof_rect.size.x, ridge_y2 - roof_rect.position.y)), true, roof.darkened(0.20))
-		draw_texture_rect(sh2, Rect2(Vector2(roof_rect.position.x, ridge_y2), Vector2(roof_rect.size.x, roof_rect.end.y - ridge_y2)), true, roof.lightened(0.06))
-		draw_rect(Rect2(roof_rect.position.x, ridge_y2 - 2, roof_rect.size.x, 4), roof.lightened(0.32))
-		for side in [-1.0, 1.0]:
-			var ex := roof_rect.position.x if side < 0.0 else roof_rect.end.x - 16.0
-			var tri := PackedVector2Array([
-				Vector2(ex, roof_rect.position.y + 2),
-				Vector2(ex, roof_rect.end.y - 2),
-				Vector2(ex + 16.0 * (1.0 if side < 0.0 else -1.0), ridge_y2),
-			])
-			draw_colored_polygon(tri, wall.lightened(0.04))
-			draw_polyline(PackedVector2Array([tri[0], tri[1], tri[2], tri[0]]), Color("241f1a", 0.45), 1.0)
-	else:
-		draw_texture_rect(_roof_tex, roof_rect, true, roof)
-		draw_rect(Rect2(roof_rect.position, Vector2(roof_rect.size.x, 3)), roof.lightened(0.18))
-	draw_rect(roof_rect, roof.darkened(0.28), false, 2.0)
-	_draw_roof_details(roof_rect, r, roof)
-
-	draw_rect(Rect2(px.position.x - 2, roof_rect.end.y, px.size.x + 4, 4), wall.darkened(0.22))
-	draw_rect(Rect2(px.position.x - 2, roof_rect.end.y + 3, px.size.x + 4, 1), wall.lightened(0.25))
-	draw_rect(Rect2(px.position.x, roof_rect.end.y + 4, px.size.x, 2), Color(0.08, 0.09, 0.07, 0.18))
-
-	var wall_tex := _wall_tex
-	if style == "brick":
-		wall_tex = PixelArt.tile_texture("wall_brick")
-	draw_texture_rect(wall_tex, face_rect, true, wall)
-	draw_rect(face_rect, wall.darkened(0.10), false, 1.0)
-
-	var floor_h := facade_h / float(FLOORS)
-	for f in range(1, FLOORS):
-		var fy := face_rect.position.y + f * floor_h
-		draw_rect(Rect2(face_rect.position.x, fy, face_rect.size.x, 1), wall.darkened(0.16))
-
-	var wide := int(face_rect.size.x / 24.0)
-	var margin := 12.0
-	var step := (face_rect.size.x - margin * 2.0) / maxf(float(wide), 1.0)
-	# 竖向壁柱：打断长立面的单调
-	if face_rect.size.x > 420.0:
-		var bay := 0
-		while true:
-			var bx := face_rect.position.x + margin + bay * 96.0 - 3.0
-			if bx > face_rect.end.x - margin - 4.0:
-				break
-			draw_rect(Rect2(bx, face_rect.position.y, 6, facade_h - 3.0), wall.darkened(0.12))
-			draw_rect(Rect2(bx, face_rect.position.y, 1, facade_h - 3.0), wall.lightened(0.16))
-			bay += 1
-	if style == "modern":
-		# 现代风格：横向带窗 + 白色横条
-		for f in FLOORS:
-			var band_y := face_rect.position.y + f * floor_h + floor_h * 0.24
-			var band_h := clampf(floor_h * 0.46, 8.0, 16.0)
-			draw_rect(Rect2(face_rect.position.x + 10, band_y, face_rect.size.x - 20, band_h), wall.darkened(0.28))
-			draw_rect(Rect2(face_rect.position.x + 11, band_y + 1, face_rect.size.x - 22, band_h - 2), glass)
-			var mx := face_rect.position.x + 10
-			while mx < face_rect.end.x - 10:
-				draw_rect(Rect2(mx, band_y, 2, band_h), wall.darkened(0.34))
-				mx += 30
-		_draw_entrance(Vector2(face_rect.get_center().x, face_rect.end.y), wall, glass)
-	else:
-		for f in range(FLOORS):
-			var fy := face_rect.position.y + f * floor_h + 4.0
-			var wh := clampf(floor_h - 9.0, 8.0, 16.0)
-			var ground := f == FLOORS - 1
-			for i in wide:
-				var wx := face_rect.position.x + margin + i * step + (step - 12.0) * 0.5
-				if ground:
-					if wide >= 12 and (i == int(wide * 0.5) or i == int(wide * 0.5) - 1):
-						_draw_entrance(Vector2(wx - 4.0, face_rect.end.y), wall, glass)
-						continue
-					_draw_window(Vector2(wx, fy), glass, wall, wh + 4.0, 12.0, balcony)
-				else:
-					_draw_window(Vector2(wx, fy), glass, wall, wh, 12.0, balcony)
-
-	draw_rect(Rect2(face_rect.position.x, face_rect.end.y - 4, face_rect.size.x, 4), wall.darkened(0.26))
-	draw_rect(Rect2(face_rect.position.x, face_rect.end.y - 1, face_rect.size.x, 1), Color(0.10, 0.09, 0.07, 0.30))
-
-	# 东侧窄立面：给体块一个厚度方向
-	if px.size.x > 46.0:
-		var sw := 6.0
-		var side := Rect2(px.end.x - sw, roof_rect.position.y + 3, sw, px.size.y - 3)
-		draw_rect(side, wall.darkened(0.38))
-		draw_rect(Rect2(side.position.x, side.position.y, 1, side.size.y), wall.darkened(0.16))
-		draw_rect(Rect2(side.position.x, side.position.y, sw, 1), Color(0.12, 0.10, 0.08, 0.35))
-	# 檐口下的投影
-	draw_rect(Rect2(px.position.x, roof_rect.end.y + 4, px.size.x, 3), Color(0.12, 0.09, 0.07, 0.22))
-	# 整体描边
-	draw_rect(Rect2(px.position + Vector2(0.5, 0.5), px.size - Vector2(1, 1)), Color("241f1a", 0.55), false, 1.5)
-	# 建筑根部的环境光遮蔽
-	draw_rect(Rect2(px.position.x - 3, px.end.y, px.size.x + 6, 6), Color(0.16, 0.12, 0.18, 0.24))
-	draw_rect(Rect2(px.position.x - 3, px.end.y + 6, px.size.x + 6, 4), Color(0.16, 0.12, 0.18, 0.12))
-
-	# 侧面明暗，做出体量
-	draw_rect(Rect2(px.position.x, px.position.y + 2, 4, facade_h), Color(0, 0, 0, 0.14))
-	draw_rect(Rect2(px.end.x - 3, px.position.y + 2, 3, facade_h), Color(1, 1, 1, 0.08))
-	if style == "u3d":
-		# 米黄色楼的石质基座，显得更高更稳
-		draw_rect(Rect2(face_rect.position.x - 2, face_rect.end.y - 4, face_rect.size.x + 4, 8), Color("b8b2a2"))
-		draw_rect(Rect2(face_rect.position.x - 2, face_rect.end.y - 4, face_rect.size.x + 4, 1), Color("d9d2c0"))
-		draw_rect(Rect2(face_rect.position.x - 2, face_rect.end.y + 4, face_rect.size.x + 4, 2), Color(0.10, 0.09, 0.07, 0.25))
-
-	# 门前铺装小广场
-	if px.size.x > 200.0:
-		draw_texture_rect(_paving_tex, Rect2(px.position.x + px.size.x * 0.5 - 76, px.end.y - 2, 152, 58), true)
-		draw_rect(Rect2(px.position.x + px.size.x * 0.5 - 76, px.end.y - 2, 152, 2), Color("e9e3d2"))
-
-
-func _draw_window(pos: Vector2, glass: Color, wall: Color, h: float, w: float, balcony: bool) -> void:
-	draw_rect(Rect2(pos - Vector2(1, 1), Vector2(w + 2, h + 2)), wall.darkened(0.42))
-	draw_rect(Rect2(pos, Vector2(w, h)), glass.darkened(0.30))
-	draw_rect(Rect2(pos + Vector2(1, 1), Vector2(w - 2, h - 2)), glass)
-	# 窗洞上沿的内阴影 + 下沿的受光，让窗“凹”进去
-	draw_rect(Rect2(pos + Vector2(1, 1), Vector2(w - 2, 1)), glass.darkened(0.55))
-	draw_rect(Rect2(pos + Vector2(1, h - 1), Vector2(w - 2, 1)), glass.lightened(0.30))
-	draw_rect(Rect2(pos + Vector2(1, 1), Vector2(w * 0.45, h * 0.4)), glass.lightened(0.20))
-	draw_rect(Rect2(pos + Vector2(w * 0.5 - 0.5, 1), Vector2(1, h - 2)), wall.darkened(0.36))
-	draw_rect(Rect2(pos + Vector2(1, h * 0.5 - 0.5), Vector2(w - 2, 1)), wall.darkened(0.36))
-	draw_rect(Rect2(pos + Vector2(-2, h), Vector2(w + 4, 2)), wall.lightened(0.26))
-	draw_rect(Rect2(pos + Vector2(-2, h + 2), Vector2(w + 4, 1)), wall.darkened(0.30))
-	if balcony:
-		draw_rect(Rect2(pos + Vector2(-2, h + 2), Vector2(w + 4, 3)), Color("8f8a7c"))
-		draw_rect(Rect2(pos + Vector2(-2, h + 2), Vector2(w + 4, 1)), Color("c9c2b0"))
-		for i in 3:
-			draw_rect(Rect2(pos + Vector2(1 + i * 4, h + 2), Vector2(1, 3)), Color("6f6a5e"))
-
-
-func _draw_entrance(pos: Vector2, wall: Color, glass: Color) -> void:
-	draw_rect(Rect2(pos + Vector2(-18, 0), Vector2(36, 4)), Color("c9c2b0"))
-	draw_rect(Rect2(pos + Vector2(-14, -2), Vector2(28, 3)), Color("d9d2c0"))
-	# 三级台阶：每级 4px，带受光面和投影，做出高差
-	for i in 3:
-		var sw := 38.0 + i * 10.0
-		var sy := pos.y + 2 + i * 5.0
-		draw_rect(Rect2(pos.x - sw * 0.5, sy, sw, 5), Color("c4beb0"))
-		draw_rect(Rect2(pos.x - sw * 0.5, sy, sw, 1), Color("e6e0d2"))
-		draw_rect(Rect2(pos.x - sw * 0.5, sy + 4, sw, 1), Color(0.14, 0.11, 0.10, 0.45))
-	draw_rect(Rect2(pos + Vector2(-13, -34), Vector2(26, 35)), Color("5c5348"))
-	draw_rect(Rect2(pos + Vector2(-11, -32), Vector2(22, 32)), Color("7d97a8"))
-	draw_rect(Rect2(pos + Vector2(-10, -31), Vector2(20, 30)), Color("8fb4c8"))
-	draw_rect(Rect2(pos + Vector2(-1, -31), Vector2(2, 30)), Color("6a8494"))
-	# 雨棚 + 棚下阴影
-	draw_rect(Rect2(pos + Vector2(-17, -40), Vector2(34, 5)), Color("8b8476"))
-	draw_rect(Rect2(pos + Vector2(-17, -40), Vector2(34, 1)), Color("b8b2a2"))
-	draw_rect(Rect2(pos + Vector2(-16, -35), Vector2(32, 2)), Color(0.10, 0.10, 0.08, 0.32))
-
-
-func _draw_roof_details(roof_rect: Rect2, r: Rect2i, roof: Color) -> void:
-	if roof_rect.size.x < 130.0 or roof_rect.size.y < 54.0:
-		return
-	var h := absi((r.position.x * 7349) ^ (r.position.y * 1571))
-	var bw := 74.0
-	var bh := 54.0
-	var bx := roof_rect.position.x + 14.0 + float(h % maxi(1, int(maxf(roof_rect.size.x - bw - 28.0, 1.0))))
-	var by := roof_rect.position.y + 12.0 + float((h / 7) % maxi(1, int(maxf(roof_rect.size.y - bh - 24.0, 1.0))))
-	var bulk := Rect2(bx, by, bw, bh)
-	draw_rect(Rect2(bulk.position + Vector2(3, 4), bulk.size), Color(0.10, 0.12, 0.10, 0.22))
-	draw_rect(bulk, roof.darkened(0.16))
-	draw_rect(Rect2(bulk.position, Vector2(bulk.size.x, 4)), roof.lightened(0.18))
-	draw_rect(bulk, roof.darkened(0.34), false, 2.0)
-	draw_rect(Rect2(bulk.position.x + 10, bulk.end.y - 22, 16, 22), Color("5c5348"))
-	draw_rect(Rect2(bulk.position.x + 12, bulk.end.y - 20, 12, 20), Color("7d97a8"))
-	for i in 2:
-		var ax := roof_rect.position.x + 12.0 + fmod(float(h + i * 97), maxf(roof_rect.size.x - 46.0, 1.0))
-		var ay := roof_rect.position.y + 10.0 + fmod(float(h / 3 + i * 53), maxf(roof_rect.size.y - 40.0, 1.0))
-		var ac := Rect2(ax, ay, 32, 22)
-		draw_rect(Rect2(ac.position + Vector2(2, 3), ac.size), Color(0.10, 0.12, 0.10, 0.20))
-		draw_rect(ac, roof.darkened(0.26))
-		draw_rect(Rect2(ac.position, Vector2(ac.size.x, 2)), roof.lightened(0.10))
-		draw_circle(ac.get_center(), 7.0, roof.darkened(0.42))
-		draw_circle(ac.get_center(), 3.0, roof.darkened(0.55))
-	if roof_rect.size.x > 220.0:
-		var sx := roof_rect.position.x + fmod(float(h / 11), maxf(roof_rect.size.x - 120.0, 1.0)) + 40.0
-		var sy := roof_rect.position.y + fmod(float(h / 5), maxf(roof_rect.size.y - 60.0, 1.0)) + 24.0
-		var sky := Rect2(sx, sy, 64, 26)
-		draw_rect(sky, Color("5c5348"))
-		draw_rect(Rect2(sky.position + Vector2(3, 3), sky.size - Vector2(6, 6)), Color("6a93a8"))
-		draw_rect(Rect2(sky.position + Vector2(3, 3), Vector2(26, 8)), Color("9fc4d4"))
-
-
-# =====================================================================
-# 围墙与校门
-# =====================================================================
 
 func _draw_boundary() -> void:
 	var x0 := _campus.position.x
@@ -1153,24 +969,6 @@ func _draw_boundary() -> void:
 				draw_rect(Rect2(x * TILE, y * TILE + TILE - 3, TILE, 3), Color(0.10, 0.16, 0.08, 0.28))
 	var gate := _gates[0] if not _gates.is_empty() else Rect2i(186, 151, 15, 5)
 	var gate_y := gate.position.y * TILE
-	var left_x := (gate.position.x - 4) * TILE
-	var right_x := (gate.end.x + 1) * TILE
-	# 校门：石柱 + 柱帽 + 门牌横梁
-	for px_x in [left_x, right_x]:
-		draw_rect(Rect2(px_x + 4, gate_y + 8, 26, 52), Color(0.10, 0.12, 0.10, 0.25))
-		draw_rect(Rect2(px_x, gate_y + 46, 34, 14), Color("9a9384"))
-		draw_rect(Rect2(px_x, gate_y + 46, 34, 2), Color("c9c2b0"))
-		draw_rect(Rect2(px_x + 3, gate_y + 10, 28, 38), Color("bdb6a6"))
-		draw_rect(Rect2(px_x + 3, gate_y + 10, 2, 38), Color("d9d2c0"))
-		draw_rect(Rect2(px_x + 3, gate_y + 10, 28, 2), Color("d9d2c0"))
-		draw_rect(Rect2(px_x - 2, gate_y + 4, 38, 8), Color("8f897b"))
-		draw_rect(Rect2(px_x - 2, gate_y + 4, 38, 2), Color("c9c2b0"))
-		draw_rect(Rect2(px_x + 12, gate_y - 6, 14, 12), Color("3f3a33"))
-		draw_rect(Rect2(px_x + 14, gate_y - 4, 10, 8), Color("f6d27a"))
-	# 门牌横梁
-	draw_rect(Rect2(left_x + 6, gate_y - 22, right_x + 28 - left_x, 14), Color("5c5348"))
-	draw_rect(Rect2(left_x + 8, gate_y - 20, right_x + 24 - left_x, 10), Color("8a6a44"))
-	draw_rect(Rect2(left_x + 8, gate_y - 20, right_x + 24 - left_x, 2), Color("b08a5a"))
 	# 入口地面
 	var gx := gate.position.x * TILE
 	var gw := gate.size.x * TILE
@@ -1183,34 +981,78 @@ func _draw_boundary() -> void:
 # =====================================================================
 
 func _spawn_decor() -> void:
+	if not _gates.is_empty():
+		var arch := preload("res://scripts/art/campus_gate.gd").new()
+		arch.gate = _gates[0]
+		arch.position = Vector2(arch.gate.get_center().x * TILE, arch.gate.position.y * TILE + 60)
+		get_parent().add_child(arch)
 	_spawn_trees()
 	_spawn_groves()
 	_spawn_forest_ring()
 	_spawn_props()
 	_spawn_lamps()
 	_spawn_npcs()
+	var atmosphere := preload("res://scripts/world/campus_atmosphere.gd").new()
+	atmosphere.world = self
+	atmosphere.z_index = 5
+	get_parent().add_child(atmosphere)
 	queue_redraw()
 
 
-func _place_tree(main: Node, cell: Vector2i, kind: String, ignore_block: bool = false) -> void:
-	if _path_cells.has(cell):
+func is_walkway(p: Vector2) -> bool:
+	if _path_cells.has(Vector2i(floori(p.x / TILE), floori(p.y / TILE))) or _on_garden_walk(p):
+		return true
+	for gate: Rect2i in _gates:
+		if Rect2(gate.position * TILE, gate.size * TILE).grow(12).has_point(p):
+			return true
+	if _top_garden.size.x > 0:
+		var r := Rect2(_top_garden.position * TILE, _top_garden.size * TILE)
+		var q := (p - r.get_center()) / (r.size * Vector2(0.30, 0.26))
+		var d := q.length_squared()
+		if d > 0.9 and d < 1.65:
+			return true
+		if r.has_point(p) and (absf(p.x - r.get_center().x) < 28 or absf(p.y - r.get_center().y) < 28):
+			return true
+		if p.distance_to(r.get_center()) < 70:
+			return true
+	return false
+
+
+func can_plant(cell: Vector2i) -> bool:
+	if not _free(cell):
+		return false
+	var pos := Vector2(cell.x * TILE + 8, cell.y * TILE + 15)
+	for offset in [Vector2.ZERO, Vector2(-24, -8), Vector2(24, -8), Vector2(-24, 8), Vector2(24, 8)]:
+		var sample: Vector2 = pos + offset
+		if is_walkway(sample):
+			return false
+		for r: Rect2 in _plant_exclusions:
+			if r.has_point(sample):
+				return false
+	for other: Vector2 in _planted:
+		if other.distance_to(pos) < 42:
+			return false
+	return true
+
+
+func _place_tree(main: Node, cell: Vector2i, kind: String, _forest: bool = false) -> void:
+	# Every caller, including the forest border, follows the same placement rules.
+	if not can_plant(cell):
 		return
-	if not ignore_block and not _free(cell):
-		return
-	var tex := PixelArt.tree(kind, (cell.x * 7 + cell.y * 13) % 3 if kind != "pine" else 0)
+	var tex := PixelArt.tree(kind, posmod(cell.x * 7 + cell.y * 13, 3))
 	var sprite := Sprite2D.new()
 	sprite.texture = tex
 	sprite.centered = false
 	sprite.position = Vector2(cell.x * TILE + 8, cell.y * TILE + 15)
-	sprite.offset = Vector2(-tex.get_width() / 2.0, -tex.get_height() + 4)
-	sprite.name = "Tree"
+	sprite.offset = Vector2(-tex.get_width() / 2.0, -tex.get_height() + 2)
+	sprite.name = "Tree_%s" % kind
 	sprite.add_to_group("trees")
-	if kind == "willow":
-		sprite.scale = Vector2(1.45, 1.45)
-		sprite.offset = Vector2(-tex.get_width() / 2.0, 4.0 / 1.45 - tex.get_height())
 	main.add_child(sprite)
+	_planted.append(sprite.position)
 	_tree_shadows.append([sprite.position, float(tex.get_width())])
-	_add_solid(Rect2(cell.x * TILE + 5, cell.y * TILE + 10, 6, 5))
+	var trunk := Rect2(sprite.position + Vector2(-5, -8), Vector2(10, 10))
+	_add_solid(trunk)
+	sprite.set_meta("footprint", trunk)
 
 
 func _spawn_trees() -> void:
@@ -1248,7 +1090,7 @@ func _spawn_groves() -> void:
 			var pos := Vector2(cell.x * TILE + 8, cell.y * TILE + 15)
 			if _on_garden_walk(pos):
 				continue
-			if not _free(cell):
+			if not can_plant(cell):
 				continue
 			var bad := false
 			for c: Vector2i in cells:
@@ -1284,7 +1126,7 @@ func _spawn_props() -> void:
 		var sprite := Sprite2D.new()
 		sprite.texture = tex
 		sprite.centered = false
-		sprite.position = Vector2(cell.x * TILE + 8, cell.y * TILE + 16)
+		sprite.position = prop_position(prop)
 		sprite.offset = Vector2(-tex.get_width() / 2.0, -tex.get_height())
 		sprite.name = "Prop_%s" % kind
 		main.add_child(sprite)
@@ -1294,29 +1136,30 @@ func _spawn_props() -> void:
 			"pos": sprite.position,
 			"text": str(prop.get("text", "")),
 		})
-		match kind:
-			"fountain":
-				_add_solid(Rect2(cell.x * TILE - 30, cell.y * TILE - 14, 60, 26))
-			"flagpole":
-				_add_solid(Rect2(cell.x * TILE - 4, cell.y * TILE - 4, 8, 8))
-			"bike_rack":
-				_add_solid(Rect2(cell.x * TILE - 14, cell.y * TILE - 4, 28, 8))
-			"pavilion":
-				_add_solid(Rect2(cell.x * TILE - 34, cell.y * TILE - 12, 68, 22))
-			"bench":
-				_add_solid(Rect2(cell.x * TILE - 10, cell.y * TILE - 2, 20, 8))
-			"bin":
-				_add_solid(Rect2(cell.x * TILE - 10, cell.y * TILE - 6, 20, 12))
-			"planter":
-				_add_solid(Rect2(cell.x * TILE - 9, cell.y * TILE - 4, 18, 8))
-			"sign":
-				_add_solid(Rect2(cell.x * TILE - 4, cell.y * TILE - 4, 8, 8))
-			"boat":
-				_add_solid(Rect2(cell.x * TILE - 78, cell.y * TILE - 16, 156, 26))
-			"bell":
-				_add_solid(Rect2(cell.x * TILE - 24, cell.y * TILE - 14, 48, 20))
-			"stele":
-				_add_solid(Rect2(cell.x * TILE - 66, cell.y * TILE - 10, 132, 16))
+		var footprint := prop_footprint(kind, sprite.position, tex.get_width())
+		_add_solid(footprint)
+		sprite.set_meta("footprint", footprint)
+		sprite.add_to_group("solid_props")
+
+
+func prop_footprint(kind: String, pos: Vector2, width: float) -> Rect2:
+	var w := width - 6.0
+	var depth := 10.0
+	match kind:
+		"lamp", "sign", "flagpole":
+			w = 6.0
+			depth = 6.0
+		"bell":
+			w = 60.0
+			depth = 20.0
+		"stele":
+			w = 132.0
+			depth = 18.0
+		"boat":
+			return Rect2(pos + Vector2(-width * 0.5 + 6, -70), Vector2(width - 12, 64))
+		"pavilion":
+			depth = 16.0
+	return Rect2(pos + Vector2(-w * 0.5, -depth - 2), Vector2(w, depth))
 
 
 func _spawn_lamps() -> void:
@@ -1339,16 +1182,20 @@ func _spawn_lamps() -> void:
 			sprite.position = Vector2(cell.x * TILE + 8, cell.y * TILE + 14)
 			sprite.offset = Vector2(-tex.get_width() / 2.0, -tex.get_height())
 			main.add_child(sprite)
+			var footprint := prop_footprint("lamp", sprite.position, 12)
+			_add_solid(footprint)
+			sprite.add_to_group("solid_props")
+			sprite.set_meta("footprint", footprint)
 
 
 func _spawn_npcs() -> void:
 	var routes := [
-		[Vector2(60, 23), Vector2(200, 23), Vector2(200, 55), Vector2(90, 55)],
-		[Vector2(120, 24), Vector2(120, 148), Vector2(160, 148), Vector2(160, 24)],
-		[Vector2(210, 65), Vector2(210, 145), Vector2(240, 145), Vector2(240, 65)],
-		[Vector2(300, 62), Vector2(300, 95), Vector2(340, 95), Vector2(340, 62)],
-		[Vector2(60, 130), Vector2(160, 130), Vector2(160, 148), Vector2(60, 148)],
-		[Vector2(180, 24), Vector2(360, 24), Vector2(360, 60), Vector2(180, 60)],
+		[Vector2(78, 22), Vector2(208, 22), Vector2(208, 66), Vector2(168, 66), Vector2(168, 55), Vector2(78, 55)],
+		[Vector2(78, 55), Vector2(78, 152), Vector2(168, 152), Vector2(168, 55)],
+		[Vector2(168, 66), Vector2(252, 66), Vector2(252, 22), Vector2(168, 22)],
+		[Vector2(252, 98), Vector2(268, 98), Vector2(268, 107), Vector2(290, 107), Vector2(290, 98), Vector2(374, 98), Vector2(374, 152), Vector2(252, 152)],
+		[Vector2(24, 98), Vector2(24, 152), Vector2(78, 152), Vector2(78, 22), Vector2(24, 22)],
+		[Vector2(252, 22), Vector2(374, 22), Vector2(374, 98), Vector2(290, 98), Vector2(290, 107), Vector2(268, 107), Vector2(268, 98), Vector2(252, 98)],
 	]
 	var shirts := [Color("c05a4a"), Color("4a9a6a"), Color("d9a13a"), Color("6a5aa8"), Color("d97a9a"), Color("3a8fb5")]
 	var hairs := [Color("3a2a1e"), Color("5a3a23"), Color("2a2a2a"), Color("6b4423"), Color("4a3020"), Color("3a2a1e")]
@@ -1356,6 +1203,7 @@ func _spawn_npcs() -> void:
 	for i in routes.size():
 		var npc = preload("res://scripts/world/npc_student.gd").new()
 		npc.route = routes[i]
+		npc.route_scale = float(TILE)
 		npc.shirt = shirts[i % shirts.size()]
 		npc.hair = hairs[i % hairs.size()]
 		var first: Vector2 = routes[i][0]
@@ -1378,12 +1226,20 @@ func _build_collision() -> void:
 	_add_edge_solids(true, _campus.end.y - 2, _campus.position.x, _campus.end.x)
 	_add_edge_solids(false, _campus.position.x, _campus.position.y, _campus.end.y)
 	_add_edge_solids(false, _campus.end.x - 2, _campus.position.y, _campus.end.y)
+	if not _gates.is_empty():
+		var gate: Rect2i = _gates[0]
+		for x in [(gate.position.x - 4) * TILE, (gate.end.x + 1) * TILE]:
+			_add_solid(Rect2(x, gate.position.y * TILE + 40, 34, 20))
 	if _pond.size.x > 0:
 		var pr := Rect2(_pond.position * TILE, _pond.size * TILE)
-		_add_solid(Rect2(pr.position.x, pr.position.y, pr.size.x, 6))
-		_add_solid(Rect2(pr.position.x, pr.end.y - 6, pr.size.x, 6))
-		_add_solid(Rect2(pr.position.x, pr.position.y, 6, pr.size.y))
-		_add_solid(Rect2(pr.end.x - 6, pr.position.y, 6, pr.size.y))
+		_add_solid(pr)
+	if _landscape.size.x > 0:
+		var lr := Rect2(_landscape.position * TILE, _landscape.size * TILE)
+		var lake := lr.position + lr.size * Vector2(0.62, 0.58)
+		for row in range(-40, 40, 4):
+			var half := 76 * sqrt(maxf(0, 1 - pow(float(row) / 42, 2)))
+			_add_solid(Rect2(lake + Vector2(-half, row), Vector2(half * 2, 4)))
+		_add_solid(Rect2(lr.position + lr.size * Vector2(0.18, 0.55) + Vector2(-48, -22), Vector2(106, 58)))
 	_add_solid(Rect2(-16, -16, _size.x * TILE + 32, 16))
 	_add_solid(Rect2(-16, _size.y * TILE, _size.x * TILE + 32, 16))
 	_add_solid(Rect2(-16, 0, 16, _size.y * TILE))
@@ -1422,6 +1278,7 @@ func _add_solid(rect: Rect2) -> void:
 	shape.shape = box
 	shape.position = rect.position + rect.size * 0.5
 	_solids.add_child(shape)
+	_solid_rects.append(rect)
 
 
 # =====================================================================
@@ -1439,14 +1296,8 @@ func _build_labels() -> void:
 		var parts: Array = building["parts"]
 		if parts.is_empty():
 			continue
-		var min_y := 99999
-		var cx := 0
-		for part: Rect2i in parts:
-			min_y = mini(min_y, part.position.y)
-			cx += int(part.get_center().x)
-		cx = cx / parts.size()
-		var top_y := min_y * TILE - 26.0
-		_add_label(holder, str(building.get("name", "")), float(cx) * TILE, top_y)
+		var first: Rect2i = parts[0]
+		_add_label(holder, str(building.get("name", "")), first.get_center().x * TILE, first.end.y * TILE - 50)
 		# 大体育馆左右两馆的室内分区标注
 		for room: Variant in building.get("rooms", []):
 			var room_d: Dictionary = room
@@ -1468,7 +1319,8 @@ func _build_labels() -> void:
 	for p: Variant in _layout.get("props", []):
 		var prop: Dictionary = p
 		if str(prop.get("type", "")) == "stele":
-			_add_motto_label(holder, "守正出新   止于至善", int(prop["x"]) * TILE + 8, int(prop["y"]) * TILE - 24)
+			var pos := prop_position(prop)
+			_add_motto_label(holder, "守正出新   止于至善", pos.x, pos.y - 40)
 
 
 func _add_static_label(holder: Node2D, text: String, center_x: float, top_y: float) -> void:
@@ -1490,7 +1342,7 @@ func _add_room_label(holder: Node2D, text: String, center_x: float, top_y: float
 	var label := Label.new()
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 10)
+	label.add_theme_font_size_override("font_size", 9)
 	label.add_theme_color_override("font_color", Color(0.94, 0.90, 0.78))
 	label.add_theme_color_override("font_outline_color", Color(0.10, 0.08, 0.07))
 	label.add_theme_constant_override("outline_size", 4)
@@ -1549,7 +1401,19 @@ func zone_name(world_pos: Vector2) -> String:
 	return "校园"
 
 
+func interaction_hint(world_pos: Vector2) -> String:
+	if _teaching_entry_rect().has_point(world_pos):
+		return "进入教学楼"
+	for prop: Dictionary in _props:
+		if world_pos.distance_to(prop["pos"] + Vector2(0, -8)) < 52:
+			return "查看" if prop["type"] != "bench" else "歇一会儿"
+	return ""
+
+
 func try_interact(world_pos: Vector2) -> String:
+	if _teaching_entry_rect().has_point(world_pos):
+		SceneFlow.enter("res://scenes/interiors/teaching_block.tscn", teaching_entry_point(), Vector2(400, 390))
+		return "推开教学楼的门。"
 	var best: Dictionary = {}
 	var best_dist := 52.0
 	for prop: Dictionary in _props:

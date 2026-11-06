@@ -10,13 +10,13 @@ const TILE := 16
 const ATLAS_SIZE := 256
 
 # ---- 调色板（秋季，低饱和，暖橄榄 + 灰紫，避免霓虹感）----
-const GRASS := Color("6c7444")
-const GRASS_HI := Color("858c52")
-const GRASS_LO := Color("575e34")
-const GRASS_DEEP := Color("454b2a")
-const DIRT := Color("b68b58")
-const DIRT_HI := Color("caa16b")
-const DIRT_LO := Color("936d3e")
+const GRASS := Color("719653")
+const GRASS_HI := Color("91b866")
+const GRASS_LO := Color("5e8047")
+const GRASS_DEEP := Color("47653d")
+const DIRT := Color("cba477")
+const DIRT_HI := Color("e5c18c")
+const DIRT_LO := Color("ab8159")
 const STONE := Color("b3ad9d")
 const STONE_HI := Color("cdc7b6")
 const STONE_LO := Color("8a8476")
@@ -77,10 +77,9 @@ static func tile_texture(tile_name: String) -> Texture2D:
 
 
 static func tree(kind: String, variant: int = 0) -> Texture2D:
-	if kind != "pine":
-		var ext := external("tree", kind)
-		if ext != null:
-			return ext
+	var ext := external("tree", kind)
+	if ext != null:
+		return ext
 	var key := "%s_%d" % [kind, variant]
 	if _tree_cache.has(key):
 		return _tree_cache[key]
@@ -95,7 +94,7 @@ static func tree(kind: String, variant: int = 0) -> Texture2D:
 		"bush":
 			img = _make_bush()
 		"crabapple":
-			img = _make_crabapple(variant)
+			img = _make_broadleaf(true, false, variant, "crabapple")
 		"ginkgo":
 			img = _make_broadleaf(false, false, variant, "ginkgo")
 		"maple":
@@ -251,7 +250,7 @@ static func _put(img: Image, x: int, y: int, c: Color) -> void:
 		return
 	if c.a < 1.0:
 		var under := img.get_pixel(x, y)
-		c = under.lerp(Color(c.r, c.g, c.b, 1.0), c.a)
+		c = under.blend(c)
 	img.set_pixel(x, y, c)
 
 
@@ -420,17 +419,17 @@ static func _paint_tile(img: Image, tile_name: String, ox: int, oy: int) -> void
 
 
 static func _paint_paving(img: Image, ox: int, oy: int) -> void:
-	for sy in 2:
-		for sx in 2:
-			var x0 := ox + sx * 8
-			var y0 := oy + sy * 8
-			var base := Color("d7d0be") if (sx + sy) % 2 == 0 else Color("dcd6c5")
-			_noise_rect(img, x0, y0, 8, 8, base, 0.05, 781 + sx * 3 + sy)
-			_hline(img, x0, y0, 8, Color("e9e3d2"))
-			_vline(img, x0, y0, 8, Color("e9e3d2"))
-			_hline(img, x0, y0 + 7, 8, Color("b9b2a0"))
-			_vline(img, x0 + 7, y0, 8, Color("b9b2a0"))
-			_put(img, x0 + 3, y0 + 4, Color("c9c2b0"))
+	_rect(img, ox, oy, TILE, TILE, Color("b9a18a"))
+	for row in 2:
+		var off := 0 if row == 0 else -8
+		for x in range(off, TILE, 16):
+			var left := maxi(x, 0)
+			var right := mini(x + 15, TILE)
+			var c := Color("decaac") if row == 0 else Color("dbc5a3")
+			_rect(img, ox + left, oy + row * 8, right - left, 7, c)
+			_hline(img, ox + left, oy + row * 8, right - left, Color("efdfbf"))
+			_hline(img, ox + left, oy + row * 8 + 6, right - left, Color("cdb494"))
+	_put(img, ox + 5, oy + 3, Color("e8d5b5"))
 
 
 static func _paint_track(img: Image, ox: int, oy: int) -> void:
@@ -462,21 +461,11 @@ static func _paint_roof_concrete(img: Image, ox: int, oy: int) -> void:
 
 
 static func _paint_asphalt(img: Image, ox: int, oy: int) -> void:
-	## 沥青：灰紫调、细骨料、少量修补痕（和参考片一致的低饱和冷紫）。
-	for y in TILE:
-		for x in TILE:
-			var n := (_rnd(x, y, 811) - 0.5) * 0.10
-			_put(img, ox + x, oy + y, _shift(Color("574f63"), n))
-	for i in 30:
-		var x := int(_rnd(i, 3, 812) * 15.0)
-		var y := int(_rnd(i, 7, 812) * 15.0)
-		_put(img, ox + x, oy + y, Color("6a6076") if i % 3 == 0 else Color("45414f"))
-	for i in 2:
-		var sx := int(_rnd(i, 5, 814) * 12.0)
-		var sy := int(_rnd(i, 9, 814) * 12.0)
-		_put(img, ox + sx, oy + sy, Color("4a4552"))
-		_put(img, ox + sx + 1, oy + sy, Color("4a4552"))
-		_put(img, ox + sx, oy + sy + 1, Color("625a6e"))
+	_rect(img, ox, oy, TILE, TILE, Color("626877"))
+	for i in 12:
+		var x := int(_rnd(i, 2, 81) * 15)
+		var y := int(_rnd(i, 9, 81) * 15)
+		_put(img, ox + x, oy + y, Color("6b7180") if i % 3 == 0 else Color("5c6270"))
 
 
 static func _paint_concrete(img: Image, ox: int, oy: int) -> void:
@@ -508,21 +497,18 @@ static func _paint_brick_paving(img: Image, ox: int, oy: int) -> void:
 
 
 static func _paint_lawn_variant(img: Image, ox: int, oy: int, v: int) -> void:
-	for y in TILE:
-		for x in TILE:
-			var c := GRASS.lightened(0.03)
-			var s := _rnd(x, y, 71 + v * 17)
-			if s > 0.94:
-				c = GRASS_HI
-			elif s < 0.05:
-				c = GRASS.darkened(0.05)
-			var n := (_rnd(x, y, 70 + v) - 0.5) * 0.07
-			_put(img, ox + x, oy + y, _shift(c, n))
-	for i in 3:
-		var bx := 2 + int(_rnd(i, 3, 90 + v) * 11.0)
-		var by := 3 + int(_rnd(i, 7, 90 + v) * 10.0)
-		_put(img, ox + bx, oy + by, GRASS_HI.darkened(0.05))
-		_put(img, ox + bx, oy + by - 1, GRASS_HI.darkened(0.02))
+	# Quiet fields of color; grouped blades instead of per-pixel static.
+	_rect(img, ox, oy, TILE, TILE, GRASS)
+	for i in 4:
+		var x := 2 + int(_rnd(i, v, 912) * 11)
+		var y := 3 + int(_rnd(v, i, 491) * 10)
+		_hline(img, ox + x, oy + y, 2, GRASS.lightened(0.035))
+	if v > 0:
+		var x := 3 + v * 2
+		var y := 10 - v
+		_put(img, ox + x, oy + y, GRASS_LO)
+		_put(img, ox + x + 1, oy + y - 1, GRASS_HI)
+		_put(img, ox + x + 2, oy + y, GRASS_HI)
 
 
 static func _paint_sand(img: Image, ox: int, oy: int) -> void:
@@ -592,16 +578,7 @@ static func _paint_grass(img: Image, ox: int, oy: int, variant: int) -> void:
 
 
 static func _paint_lawn(img: Image, ox: int, oy: int) -> void:
-	for y in TILE:
-		for x in TILE:
-			var c := GRASS.lightened(0.02)
-			var s := _rnd(x, y, 72)
-			if s > 0.93:
-				c = GRASS_HI
-			elif s < 0.06:
-				c = GRASS.darkened(0.05)
-			var n := (_rnd(x, y, 71) - 0.5) * 0.07
-			_put(img, ox + x, oy + y, _shift(c, n))
+	_paint_lawn_variant(img, ox, oy, 0)
 
 
 static func _paint_dirt(img: Image, ox: int, oy: int, variant: int) -> void:
@@ -793,136 +770,100 @@ static func _paint_gravel(img: Image, ox: int, oy: int) -> void:
 # =====================================================================
 
 static func _make_broadleaf(blossom: bool, fruit: bool, variant: int = 0, kind: String = "oak") -> Image:
-	var w := 34
-	var h := 46
-	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	var cx := w / 2
-	var seedv := 801 + variant * 97
-
-	var dark := Color("2b5a2b")
-	var mid := Color("3f7b39")
-	var light := Color("5b9c4a")
-	var hi := Color("7dbe60")
-	var outline_c := Color("1c3a1a")
-	match kind:
-		"ginkgo":
-			dark = Color("6a6a24")
-			mid = Color("96962f")
-			light = Color("c4bc3e")
-			hi = Color("e6d96a")
-			outline_c = Color("3a3a14")
-		"maple":
-			dark = Color("6a2a1e")
-			mid = Color("9c3a20")
-			light = Color("c85a2a")
-			hi = Color("e88a3a")
-			outline_c = Color("3a160e")
-		"plane":
-			dark = Color("38542c")
-			mid = Color("557a38")
-			light = Color("7f9c4a")
-			hi = Color("b4c070")
-			outline_c = Color("24361a")
+	var img := Image.create(58, 76, false, Image.FORMAT_RGBA8)
+	img.fill(Color.TRANSPARENT)
+	var ink := Color("314a35")
+	var dark := Color("416443")
+	var mid := Color("61874b")
+	var light := Color("86a855")
+	var hi := Color("b3cb77")
+	if kind == "ginkgo":
+		ink = Color("645433")
+		dark = Color("99803f")
+		mid = Color("bea04f")
+		light = Color("dfc064")
+		hi = Color("f4db8a")
+	elif kind == "maple":
+		ink = Color("653e38")
+		dark = Color("995143")
+		mid = Color("c7754d")
+		light = Color("e49b60")
+		hi = Color("f3c17b")
+	elif kind == "plane":
+		mid = Color("74934e")
+		light = Color("a5b65d")
+		hi = Color("c8d184")
 	if blossom:
-		dark = Color("6d3350")
-		mid = Color("a8517a")
-		light = Color("d07ba3")
-		hi = Color("f0b3c9")
-		outline_c = Color("4a2030")
-
-	# 树干
-	_rect(img, cx - 3, h - 17, 6, 15, Color("4b3120"))
-	_rect(img, cx - 2, h - 16, 3, 13, Color("6b472b"))
-	_rect(img, cx - 1, h - 15, 1, 11, Color("8a5f38"))
-	_rect(img, cx + 2, h - 15, 1, 12, Color("3f2818"))
-	# 根部
-	_rect(img, cx - 5, h - 4, 3, 2, Color("4b3120"))
-	_rect(img, cx + 3, h - 4, 3, 2, Color("4b3120"))
-
-	var top := Vector2i(cx, h - 30)
-	# 外轮廓 + 三层树冠（变体让树冠轮廓略有差别）
-	var jx := (variant * 5) % 5 - 2
-	_disc(img, top.x, top.y + 2, 16, 12, dark)
-	_disc(img, top.x, top.y + 1, 15, 11, mid)
-	_disc(img, top.x - 3 + jx, top.y - 3, 12, 9, light)
-	_disc(img, top.x + 4 - jx, top.y + 2, 10, 8, mid)
-	_disc(img, top.x - 6, top.y + 3, 7, 6, mid)
-	_disc(img, top.x - 4, top.y - 5, 8, 6, hi)
-	# 侧边小簇，打破圆形
-	_disc(img, top.x + 13, top.y + 5, 4, 4, mid)
-	_disc(img, top.x - 14, top.y + 4, 4, 4, dark)
-	_disc(img, top.x + 10, top.y - 8 - variant, 4, 4, light)
-
-	# 叶簇高光与抖动
-	for i in 16:
-		var px := cx - 13 + int(_rnd(i, 3, seedv) * 27.0)
-		var py := top.y - 12 + int(_rnd(i, 9, seedv) * 22.0)
-		var c := hi if _rnd(i, 5, seedv + 1) > 0.45 else light
-		_put(img, px, py, c)
-	for i in 10:
-		var px := cx - 12 + int(_rnd(i, 7, seedv + 2) * 25.0)
-		var py := top.y - 10 + int(_rnd(i, 11, seedv + 2) * 20.0)
-		_put(img, px, py, dark.darkened(0.08))
-
+		ink = Color("70465a")
+		dark = Color("a3657b")
+		mid = Color("cd8c9b")
+		light = Color("eeb7bc")
+		hi = Color("ffe0d3")
+		if kind == "crabapple":
+			mid = Color("c97b8e")
+	# Forked trunk, bark grooves and spreading roots.
+	_rect(img, 25, 43, 9, 29, Color("5d4435"))
+	_rect(img, 26, 44, 3, 26, Color("a4784e"))
+	_vline(img, 29, 47, 23, Color("79553c"))
+	_vline(img, 32, 49, 21, Color("47382e"))
+	_rect(img, 22, 69, 6, 3, Color("654a36"))
+	_rect(img, 32, 70, 6, 2, Color("654a36"))
+	for i in 12:
+		_rect(img, 21 + i / 2, 49 + i, 3, 2, Color("76553d"))
+		_rect(img, 35 - i / 2, 46 + i, 3, 2, Color("654935"))
+	# Lobed silhouette with a dark underside and overlapping leaf masses.
+	var lobes := [Vector3i(17, 34, 14), Vector3i(36, 35, 16), Vector3i(12, 25, 10), Vector3i(43, 25, 11), Vector3i(26, 23, 21), Vector3i(28, 12, 13)]
+	for l: Vector3i in lobes:
+		_disc(img, l.x, l.y, l.z, int(l.z * 0.78), ink)
+		_disc(img, l.x, l.y - 1, l.z - 1, int(l.z * 0.78) - 1, dark)
+	var clusters := [Vector3i(14, 31, 10), Vector3i(34, 35, 12), Vector3i(44, 25, 9), Vector3i(22, 26, 14), Vector3i(15, 18, 9), Vector3i(33, 18, 13), Vector3i(27, 10, 10)]
+	for j in clusters.size():
+		var l: Vector3i = clusters[j]
+		_disc(img, l.x, l.y + 2, l.z, int(l.z * 0.68), dark)
+		_disc(img, l.x - 1, l.y, l.z, int(l.z * 0.65), mid)
+		_disc(img, l.x - 3, l.y - 3, l.z - 3, int(l.z * 0.44), light)
+	# Small connected leaf marks, clipped to the crown.
+	for i in 100:
+		var x := 4 + int(_rnd(i, 7, 165 + variant * 17) * 50)
+		var y := 5 + int(_rnd(i, 3, 215 + variant * 29) * 40)
+		if img.get_pixel(x, y) not in [mid, light]:
+			continue
+		var c := hi if i % 4 == 0 else light
+		_hline(img, x, y, 2, c)
+		_put(img, x + 1, y - 1, c)
+		if i % 3 == 0:
+			_put(img, x, y + 1, dark)
 	if fruit:
-		for p: Vector2i in [Vector2i(-7, 2), Vector2i(5, 6), Vector2i(9, -4), Vector2i(-2, 9)]:
-			var fx := cx + p.x + jx
-			var fy := top.y + p.y
-			_put(img, fx, fy, Color("e07b2a"))
-			_put(img, fx + 1, fy, Color("f2a044"))
-			_put(img, fx, fy + 1, Color("b85a1c"))
-	if blossom:
-		for i in 8:
-			var px := cx - 11 + int(_rnd(i, 13, seedv + 3) * 23.0)
-			var py := top.y - 9 + int(_rnd(i, 17, seedv + 3) * 18.0)
-			_put(img, px, py, Color("ffe3ee"))
-	_outline(img, outline_c)
-	_shadow(img, cx, h - 3, 13, 4, 0.26)
+		for pos in [Vector2i(12, 27), Vector2i(38, 30), Vector2i(26, 39)]:
+			_disc(img, pos.x, pos.y, 2, 2, Color("bd6553"))
+			_put(img, pos.x - 1, pos.y - 1, Color("f6c17a"))
 	return img
 
 
 static func _make_pine() -> Image:
-	var w := 28
-	var h := 50
-	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	var cx := w / 2
-	# 树干
-	_rect(img, cx - 2, h - 14, 4, 12, Color("4a3120"))
-	_rect(img, cx - 1, h - 13, 1, 10, Color("7a5230"))
-
-	# 三层塔形树冠：实心三角形 + 左右明暗 + 锯齿底边
-	var layers := [
-		{"base": h - 9, "top": h - 22, "half": 12},
-		{"base": h - 20, "top": h - 34, "half": 9},
-		{"base": h - 31, "top": h - 44, "half": 6},
-	]
-	for layer: Dictionary in layers:
-		var base_y: int = layer["base"]
-		var top_y: int = layer["top"]
-		var half: int = layer["half"]
-		var height := base_y - top_y
-		for row in range(height):
-			var t := float(row) / float(height)
-			var hw := int(round(float(half) * t))
-			var y := top_y + row
-			_rect(img, cx - hw, y, hw * 2 + 1, 1, Color("2f6438"))
-			_put(img, cx - hw, y, Color("4f8a46"))
-			_put(img, cx - hw + 1, y, Color("4f8a46"))
-			_put(img, cx + hw, y, Color("23502c"))
-		# 锯齿状下沿
-		var step := 3
-		for x in range(cx - half, cx + half + 1, step):
-			_put(img, x, base_y, Color("23502c"))
-			_put(img, x + 1, base_y, Color("2f6438"))
-		# 高光
-		for i in 3:
-			var hx := cx - half + 3 + int(_rnd(i, layer["base"], 813) * float(half))
-			var hy := top_y + 3 + int(_rnd(i, layer["top"], 814) * float(height - 4))
-			_put(img, hx, hy, Color("6aa85a"))
-	_deep_outline(img, Color("183a20"))
-	_shadow(img, cx, h - 3, 10, 4, 0.30)
+	var img := Image.create(44, 76, false, Image.FORMAT_RGBA8)
+	img.fill(Color.TRANSPARENT)
+	_rect(img, 19, 55, 6, 18, Color("624b39"))
+	_vline(img, 20, 57, 14, Color("b18b56"))
+	for layer in 4:
+		var top := 4 + layer * 11
+		var half := 8 + layer * 4
+		for row in 24:
+			var span := maxi(1, int(float(row) / 24 * half))
+			_hline(img, 22 - span, top + row, span * 2 + 1, Color("304e44"))
+			if row > 2:
+				_hline(img, 23 - span, top + row - 1, span, Color("578264"))
+			if row % 5 == 0:
+				_hline(img, 24 - span, top + row - 2, maxi(1, span - 2), Color("83a578"))
+			if row > 6 and row % 4 == 0:
+				_put(img, 21 - span, top + row, Color.TRANSPARENT)
+				_hline(img, 21 - span, top + row - 1, 3, Color("6c9670"))
+				_hline(img, 23 + span - 4, top + row - 1, 3, Color("436a55"))
+		for i in 14:
+			var y := top + 8 + int(_rnd(i, layer, 71) * 14)
+			var span := int(float(y - top) / 24 * half)
+			var x := 22 - span + int(_rnd(layer, i, 99) * max(1, span * 2))
+			_hline(img, x, y, 2, Color("6c9670") if i % 2 else Color("385b4c"))
 	return img
 
 
@@ -1107,6 +1048,15 @@ static func _make_person(direction: String, frame: int, shirt: Color, hair: Colo
 	_rect(img, 9, 17, 2, 4 - step, pants)
 	_rect(img, 4, 21 + step, 3, 2, boot)
 	_rect(img, 9, 21 - step, 3, 2, boot)
+	_rect(img, 5, 3, 4, 1, hair.lightened(0.2))
+	if direction != "up":
+		_put(img, 7, 12, shirt.lightened(0.35))
+		_put(img, 7, 14, shirt.lightened(0.35))
+	else:
+		_rect(img, 5, 12, 6, 6, pack)
+		_rect(img, 6, 15, 4, 2, pack_dark)
+		_put(img, 8, 15, Color("e6c785"))
+	_outline(img, Color("393b38"))
 	return img
 
 
@@ -1441,63 +1391,82 @@ static func _make_planter() -> Image:
 
 
 static func _make_boat() -> Image:
-	## 木船：船头朝右，甲板被沙子覆盖。
-	var w := 188
-	var h := 78
-	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	_shadow(img, 94, h - 6, 70, 6, 0.24)
-	var cy := 42.0
-	for x in w:
-		var t := float(x) / float(w - 1)
-		var half := 0.0
-		if t < 0.08:
-			half = 22.0 * (0.55 + 0.45 * t / 0.08)
-		elif t < 0.80:
-			half = 22.0
-		else:
-			half = 22.0 * (1.0 - pow((t - 0.80) / 0.20, 1.6))
-		if half < 1.0:
-			continue
-		for y in range(int(cy - half), int(cy + half) + 1):
-			var edge := absf(float(y) - cy) / maxf(half, 1.0)
-			var c := Color("6b4526")
-			if edge > 0.82:
-				c = Color("4a2e18")
-			elif edge < 0.22:
-				c = Color("a5723f")
-			_put(img, x, y, c)
-	# 船舷
-	for x in range(2, w - 4):
-		var t2 := float(x) / float(w - 1)
-		var hh := 22.0 if t2 < 0.8 else 22.0 * (1.0 - pow((t2 - 0.80) / 0.20, 1.6))
-		if t2 < 0.08:
-			hh = 22.0 * (0.55 + 0.45 * t2 / 0.08)
-		_put(img, x, int(cy - hh) + 1, Color("b07f4a"))
-		_put(img, x, int(cy + hh) - 1, Color("8a5f38"))
-	# 甲板沙
-	for x in range(10, w - 10):
-		var t3 := float(x) / float(w - 1)
-		var hh2 := 19.0 if t3 < 0.8 else 19.0 * (1.0 - pow((t3 - 0.80) / 0.20, 1.6))
-		for y in range(int(cy - hh2) + 2, int(cy + hh2) - 1):
-			var n := (_rnd(x, y, 963) - 0.5) * 0.10
-			_put(img, x, y, _shift(Color("d9c08a"), n))
-	# 沙堆与木纹
-	for i in 26:
-		var sx := 16 + int(_rnd(i, 3, 964) * 150.0)
-		var sy := int(cy - 12) + int(_rnd(i, 7, 964) * 22.0)
-		_put(img, sx, sy, Color("e8d6a8"))
-		_put(img, sx + 1, sy, Color("bfa470"))
-	for i in 5:
-		var bx := 20 + i * 32
-		_rect(img, bx, int(cy - 20), 1, 6, Color("8a5f38"))
-		_rect(img, bx, int(cy + 15), 1, 6, Color("8a5f38"))
-	# 船头尖角
-	for i in 8:
-		_put(img, w - 2 - i, int(cy) - int(i / 2.0), Color("6b4526"))
-		_put(img, w - 2 - i, int(cy) + int(i / 2.0), Color("6b4526"))
-	_outline(img, Color("3a2412"))
+	# Sand play boat: a larger timber hull, proper rigging and two white canvas sails.
+	var img := Image.create(256, 200, false, Image.FORMAT_RGBA8)
+	img.fill(Color.TRANSPARENT)
+	_shadow(img, 128, 192, 115, 6, 0.18)
+	var cy := 160
+	for x in range(5, 251):
+		var t := float(x - 5) / 246
+		var half := 30.0
+		if t < 0.10:
+			half *= 0.55 + 0.45 * t / 0.10
+		elif t > 0.77:
+			half *= 1.0 - pow((t - 0.77) / 0.23, 1.5)
+		for y in range(cy - int(half), cy + int(half) + 1):
+			var edge := absf(float(y - cy)) / maxf(half, 1)
+			var color := Color("90613f")
+			if edge > 0.87:
+				color = Color("533e30")
+			elif edge < 0.67:
+				color = Color("d9bd89")
+			_put(img, x, y, color)
+		_put(img, x, cy - int(half) + 2, Color("d2a76e"))
+		_put(img, x, cy + int(half) - 3, Color("b58352"))
+	# Short stave seams, copper fasteners and grain sit beneath the sand.
+	for x in range(16, 228, 23):
+		_vline(img, x, cy - 26, 6, Color("684b34"))
+		_vline(img, x, cy + 22, 5, Color("684b34"))
+		_put(img, x + 2, cy + 23, Color("dfbd83"))
+		_put(img, x + 2, cy - 24, Color("dfbd83"))
+	for i in 90:
+		var x := 16 + int(_rnd(i, 3, 416) * 194)
+		var y := cy - 15 + int(_rnd(i, 8, 417) * 31)
+		_put(img, x, y, Color("efd8a8") if i % 3 else Color("bfa170"))
+	for mound in [Vector2i(54, 160), Vector2i(156, 158), Vector2i(195, 163)]:
+		_disc(img, mound.x, mound.y, 20, 8, Color("c9ab76"))
+		_disc(img, mound.x - 3, mound.y - 2, 16, 6, Color("e4ca98"))
+		_hline(img, mound.x - 8, mound.y - 4, 9, Color("efd8a8"))
+	_outline(img, Color("4c3b2d"))
+	# Shrouds attach at the bow and stern; canvas overlaps them naturally.
+	_pixel_line(img, Vector2i(112, 16), Vector2i(18, 166), Color("8c795b"))
+	_pixel_line(img, Vector2i(112, 16), Vector2i(244, 158), Color("8c795b"))
+	_rect(img, 109, 12, 5, 168, Color("684b36"))
+	_vline(img, 110, 13, 165, Color("d1a36c"))
+	_vline(img, 113, 14, 165, Color("463a2d"))
+	# The mainsail has a bowed leech and a shaded hem; it remains visibly white.
+	for y in range(24, 148):
+		var t := float(y - 24) / 124
+		var span := maxi(1, int(t * 104 + sin(t * PI) * 10))
+		_hline(img, 117, y, span, Color("f7f5e9"))
+		_hline(img, 117 + maxi(0, span - 5), y, mini(5, span), Color("d7d9d1"))
+		if span > 12:
+			_hline(img, 119, y, 3, Color("fffdf2"))
+	for y in range(41, 147):
+		var t := float(y - 41) / 106
+		var span := maxi(1, int(t * 65 + sin(t * PI) * 7))
+		_hline(img, 106 - span, y, span, Color("e8ebe3"))
+		_hline(img, 106 - span, y, mini(3, span), Color("c1c9c1"))
+		if span > 8:
+			_hline(img, 102, y, 3, Color("faf9ee"))
+	for x in [142, 170, 198]:
+		_pixel_line(img, Vector2i(119, 30), Vector2i(x, 145), Color("e0e2d8"))
+	_pixel_line(img, Vector2i(106, 44), Vector2i(55, 145), Color("fdfcf0"))
+	_hline(img, 41, 147, 181, Color("c5cbbf"))
+	_rect(img, 102, 150, 123, 3, Color("87613e"))
+	_hline(img, 102, 150, 123, Color("c79c68"))
+	_pixel_line(img, Vector2i(224, 152), Vector2i(173, 178), Color("927b56"))
+	_rect(img, 108, 175, 8, 6, Color("705137"))
+	_rect(img, 114, 16, 23, 7, Color("537e88"))
+	_rect(img, 114, 16, 23, 1, Color("96b6b3"))
 	return img
+
+
+static func _pixel_line(img: Image, a: Vector2i, b: Vector2i, color: Color) -> void:
+	var count := maxi(absi(b.x - a.x), absi(b.y - a.y))
+	for i in range(count + 1):
+		var point := Vector2(a).lerp(Vector2(b), float(i) / maxi(count, 1)).round()
+		_put(img, int(point.x), int(point.y), color)
 
 
 static func _make_bell() -> Image:

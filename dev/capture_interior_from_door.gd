@@ -13,7 +13,7 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	var player := main.get_node("Player") as Node2D
-	player.global_position = Vector2(3000, 728)
+	player.global_position = main.get_node("World").teaching_entry_point()
 	player.facing = Vector2.UP
 	main.get_node("World").try_interact(player.global_position + player.facing * 20.0)
 	await process_frame

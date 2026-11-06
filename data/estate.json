@@ -1,11 +1,12 @@
 {
   "tile": 16,
+  "axis_x": 208,
   "size": [400, 180],
   "campus": [18, 14, 364, 142],
 
   "boundary": {
 	"gates": [
-	  [193, 151, 14, 5],
+	  [201, 151, 14, 5],
 	  [18, 70, 5, 13],
 	  [379, 70, 5, 13]
 	]
@@ -23,14 +24,24 @@
 	[206, 24, 4, 40],
 
 	[80, 53, 86, 4],
+	[39, 36, 37, 3],
+	[39, 80, 37, 3],
+	[39, 120, 37, 3],
 	[170, 64, 80, 4],
-	[254, 96, 118, 4],
+	[206, 68, 4, 7],
+	[206, 90, 4, 28],
+	[180, 96, 56, 3],
+	[254, 96, 16, 4],
+	[266, 96, 4, 13],
+	[270, 105, 22, 4],
+	[288, 96, 4, 9],
+	[292, 96, 80, 4],
 
-	[194, 118, 12, 38],
-	[174, 118, 52, 4],
-	[174, 118, 4, 10],
-	[222, 118, 4, 10],
-	[237, 139, 13, 4]
+	[202, 118, 12, 38],
+	[174, 120, 68, 4],
+	[174, 120, 4, 8],
+	[238, 120, 4, 8],
+	[246, 139, 4, 4]
   ],
 
   "track": [84, 58, 62, 90],
@@ -42,48 +53,39 @@
 
   "tennis": [152, 102, 12, 17],
   "pond": [153, 121, 10, 12],
-  "straight_track": [146, 58, 6, 90],
+  "straight_track": [140, 58, 6, 90],
   "top_garden": [303, 26, 66, 53],
   "landscape": [319, 121, 30, 19],
 
-  "garden": [160, 126, 80, 24],
+  "garden": [170, 126, 76, 24],
 
   "buildings": [
 	{
 	  "id": "teach_c1",
 	  "name": "教学楼 C1",
 	  "style": "u3d",
-	  "wall": "#efe3c6",
-	  "roof": "#5f6b5c",
+	  "wall": "#f3dfb4",
+	  "roof": "#66877c",
 	  "window": "#6f93b0",
-	  "parts": [[37, 24, 36, 7], [37, 41, 36, 7], [37, 31, 6, 10]]
+	  "parts": [[32, 26, 40, 8], [32, 50, 40, 8], [32, 34, 7, 16]]
 	},
 	{
 	  "id": "teach_c2",
 	  "name": "教学楼 C2",
 	  "style": "u3d",
-	  "wall": "#efe3c6",
-	  "roof": "#5f6b5c",
+	  "wall": "#f3dfb4",
+	  "roof": "#66877c",
 	  "window": "#6f93b0",
-	  "parts": [[37, 52, 36, 7], [37, 69, 36, 7], [37, 59, 6, 10]]
-	},
-	{
-	  "id": "teach_c3",
-	  "name": "教学楼 C3",
-	  "style": "u3d",
-	  "wall": "#efe3c6",
-	  "roof": "#5f6b5c",
-	  "window": "#6f93b0",
-	  "parts": [[37, 80, 36, 7], [37, 97, 36, 7], [37, 87, 6, 10]]
+	  "parts": [[32, 66, 40, 8], [32, 90, 40, 8], [32, 74, 7, 16]]
 	},
 	{
 	  "id": "teach_c4",
 	  "name": "教学楼 C4",
 	  "style": "u3d",
-	  "wall": "#efe3c6",
-	  "roof": "#5f6b5c",
+	  "wall": "#f3dfb4",
+	  "roof": "#66877c",
 	  "window": "#6f93b0",
-	  "parts": [[37, 108, 36, 7], [37, 125, 36, 7], [37, 115, 6, 10]]
+	  "parts": [[32, 106, 40, 8], [32, 130, 40, 8], [32, 114, 7, 16]]
 	},
 	{
 	  "id": "link1",
@@ -92,7 +94,7 @@
 	  "wall": "#cfd8d4",
 	  "roof": "#7f9aa8",
 	  "window": "#9fc4d4",
-	  "parts": [[67, 48, 6, 4]]
+	  "parts": [[66, 58, 6, 8]]
 	},
 	{
 	  "id": "link2",
@@ -101,23 +103,14 @@
 	  "wall": "#cfd8d4",
 	  "roof": "#7f9aa8",
 	  "window": "#9fc4d4",
-	  "parts": [[67, 76, 6, 4]]
-	},
-	{
-	  "id": "link3",
-	  "name": "",
-	  "style": "glass",
-	  "wall": "#cfd8d4",
-	  "roof": "#7f9aa8",
-	  "window": "#9fc4d4",
-	  "parts": [[67, 104, 6, 4]]
+	  "parts": [[66, 98, 6, 8]]
 	},
 	{
 	  "id": "gym",
 	  "name": "大体育馆",
 	  "style": "gym",
-	  "wall": "#d9d4c8",
-	  "roof": "#7d8a92",
+	  "wall": "#ead9b9",
+	  "roof": "#6f8990",
 	  "window": "#6f93b0",
 	  "parts": [[84, 30, 75, 22]],
 	  "rooms": [
@@ -129,8 +122,8 @@
 	  "id": "teach_a",
 	  "name": "教学 A 楼",
 	  "style": "modern",
-	  "wall": "#ecebe4",
-	  "roof": "#9a988f",
+	  "wall": "#ede0c4",
+	  "roof": "#829b99",
 	  "window": "#5f8fae",
 	  "parts": [[170, 30, 34, 14]]
 	},
@@ -138,17 +131,17 @@
 	  "id": "teach_b",
 	  "name": "教学 B 楼",
 	  "style": "modern",
-	  "wall": "#ecebe4",
-	  "roof": "#9a988f",
+	  "wall": "#ede0c4",
+	  "roof": "#829b99",
 	  "window": "#5f8fae",
-	  "parts": [[212, 30, 36, 14]]
+	  "parts": [[212, 30, 34, 14]]
 	},
 	{
 	  "id": "teach_c",
 	  "name": "教学 C 楼",
 	  "style": "classic",
-	  "wall": "#d9cdb5",
-	  "roof": "#8a867b",
+	  "wall": "#eed6b3",
+	  "roof": "#8a716b",
 	  "window": "#6f93b0",
 	  "parts": [[170, 48, 34, 14]]
 	},
@@ -156,33 +149,26 @@
 	  "id": "teach_d",
 	  "name": "教学 D 楼",
 	  "style": "classic",
-	  "wall": "#d9cdb5",
-	  "roof": "#8a867b",
+	  "wall": "#eed6b3",
+	  "roof": "#8a716b",
 	  "window": "#6f93b0",
-	  "parts": [[212, 48, 36, 14]]
+	  "parts": [[212, 48, 34, 14]]
 	},
 	{
 	  "id": "admin",
 	  "name": "行政楼",
 	  "style": "hall",
-	  "wall": "#e3d8c2",
-	  "roof": "#858075",
+	  "wall": "#ead0a7",
+	  "roof": "#697d75",
 	  "window": "#6a90b2",
-	  "parts": [
-		[183, 75, 52, 9],
-		[205, 84, 8, 6],
-		[170, 85, 10, 34],
-		[239, 85, 10, 34],
-		[170, 110, 26, 8],
-		[204, 110, 45, 8]
-	  ]
+	  "parts": [[182, 75, 52, 9], [204, 84, 8, 6], [170, 85, 10, 34], [236, 85, 10, 34], [170, 110, 30, 8], [216, 110, 30, 8]]
 	},
 	{
 	  "id": "dorm_slab",
 	  "name": "学生公寓",
 	  "style": "dorm",
-	  "wall": "#d8c8ae",
-	  "roof": "#837d72",
+	  "wall": "#e6c8a3",
+	  "roof": "#91725e",
 	  "window": "#7d99ad",
 	  "balcony": true,
 	  "parts": [[268, 29, 18, 52]]
@@ -191,8 +177,8 @@
 	  "id": "teach_e",
 	  "name": "教学 E 楼",
 	  "style": "gable",
-	  "wall": "#e8dcc0",
-	  "roof": "#9a5a48",
+	  "wall": "#ecd3ad",
+	  "roof": "#bc745e",
 	  "window": "#6f93b0",
 	  "parts": [[273, 84, 15, 21]]
 	},
@@ -200,8 +186,8 @@
 	  "id": "teach_f",
 	  "name": "教学 F 楼",
 	  "style": "gable",
-	  "wall": "#e6d8bc",
-	  "roof": "#8a5a46",
+	  "wall": "#ecd3ad",
+	  "roof": "#bc745e",
 	  "window": "#6f93b0",
 	  "parts": [[273, 109, 15, 24]]
 	},
@@ -209,8 +195,8 @@
 	  "id": "intl",
 	  "name": "国际学院",
 	  "style": "brick",
-	  "wall": "#dfc9ad",
-	  "roof": "#a95a48",
+	  "wall": "#edc6a1",
+	  "roof": "#b66c57",
 	  "window": "#7c94a8",
 	  "parts": [
 		[310, 100, 48, 9],
@@ -229,12 +215,12 @@
 	{ "x": 377, "y": 26, "cols": 1, "rows": 41, "sx": 0, "sy": 3, "kind": "maple" },
 	{ "x": 380, "y": 26, "cols": 1, "rows": 41, "sx": 0, "sy": 3, "kind": "oak" },
 
-	{ "x": 34, "y": 131, "cols": 10, "rows": 1, "sx": 3, "sy": 0, "kind": "blossom" },
-	{ "x": 40, "y": 54, "cols": 6, "rows": 1, "sx": 5, "sy": 0, "kind": "ginkgo" },
+	{ "x": 38, "y": 142, "cols": 9, "rows": 1, "sx": 3, "sy": 0, "kind": "blossom" },
+	{ "x": 40, "y": 62, "cols": 6, "rows": 1, "sx": 5, "sy": 0, "kind": "ginkgo" },
 	{ "x": 156, "y": 60, "cols": 1, "rows": 8, "sx": 0, "sy": 3, "kind": "blossom" },
 
 	{ "x": 324, "y": 115, "cols": 3, "rows": 3, "sx": 8, "sy": 8, "kind": "oak" },
-	{ "x": 186, "y": 92, "cols": 5, "rows": 2, "sx": 10, "sy": 10, "kind": "blossom" },
+	{ "x": 186, "y": 92, "cols": 5, "rows": 2, "sx": 11, "sy": 10, "kind": "blossom" },
 
 	{ "x": 165, "y": 60, "cols": 1, "rows": 10, "sx": 0, "sy": 4, "kind": "larch" },
 	{ "x": 170, "y": 64, "cols": 1, "rows": 3, "sx": 0, "sy": 4, "kind": "larch" },
@@ -242,20 +228,20 @@
 	{ "x": 308, "y": 32, "cols": 6, "rows": 4, "sx": 9, "sy": 9, "kind": "maple" },
 	{ "x": 318, "y": 70, "cols": 4, "rows": 1, "sx": 9, "sy": 0, "kind": "cherry" },
 
-	{ "x": 173, "y": 119, "cols": 1, "rows": 2, "sx": 0, "sy": 4, "kind": "ginkgo" },
-	{ "x": 183, "y": 119, "cols": 1, "rows": 2, "sx": 0, "sy": 4, "kind": "ginkgo" },
-	{ "x": 218, "y": 119, "cols": 1, "rows": 2, "sx": 0, "sy": 4, "kind": "maple" },
-	{ "x": 228, "y": 119, "cols": 1, "rows": 2, "sx": 0, "sy": 4, "kind": "maple" },
+	{ "x": 181, "y": 124, "cols": 1, "rows": 2, "sx": 0, "sy": 4, "kind": "ginkgo" },
+	{ "x": 191, "y": 124, "cols": 1, "rows": 2, "sx": 0, "sy": 4, "kind": "ginkgo" },
+	{ "x": 226, "y": 124, "cols": 1, "rows": 2, "sx": 0, "sy": 4, "kind": "maple" },
+	{ "x": 236, "y": 124, "cols": 1, "rows": 2, "sx": 0, "sy": 4, "kind": "maple" },
 
 	{ "x": 90, "y": 24, "cols": 1, "rows": 8, "sx": 0, "sy": 3, "kind": "oak" },
 	{ "x": 298, "y": 24, "cols": 1, "rows": 12, "sx": 0, "sy": 4, "kind": "pine" },
 	{ "x": 290, "y": 30, "cols": 1, "rows": 10, "sx": 0, "sy": 4, "kind": "blossom" },
 
-	{ "x": 46, "y": 61, "cols": 5, "rows": 2, "sx": 5, "sy": 5, "kind": "crabapple" },
-	{ "x": 46, "y": 89, "cols": 5, "rows": 2, "sx": 5, "sy": 5, "kind": "crabapple" },
+	{ "x": 46, "y": 78, "cols": 5, "rows": 2, "sx": 5, "sy": 5, "kind": "crabapple" },
+	{ "x": 46, "y": 84, "cols": 5, "rows": 2, "sx": 5, "sy": 5, "kind": "crabapple" },
 
-	{ "x": 44, "y": 116, "cols": 12, "rows": 1, "sx": 2, "sy": 0, "kind": "bamboo" },
-	{ "x": 44, "y": 118, "cols": 1, "rows": 4, "sx": 0, "sy": 2, "kind": "bamboo" },
+	{ "x": 44, "y": 119, "cols": 12, "rows": 1, "sx": 2, "sy": 0, "kind": "bamboo" },
+	{ "x": 44, "y": 121, "cols": 1, "rows": 4, "sx": 0, "sy": 2, "kind": "bamboo" },
 
 	{ "x": 158, "y": 120, "cols": 1, "rows": 1, "sx": 0, "sy": 0, "kind": "willow" },
 
@@ -265,16 +251,16 @@
   ],
 
   "groves": [
-	{ "rect": [161, 127, 33, 22], "count": 26, "kinds": ["cherry", "crabapple", "ginkgo", "plane", "pine", "willow", "cypress", "bush"] },
-	{ "rect": [207, 127, 33, 22], "count": 26, "kinds": ["cherry", "maple", "plane", "crabapple", "oak", "bamboo", "cypress", "bush"] }
+	{ "rect": [171, 127, 30, 22], "count": 26, "kinds": ["cherry", "crabapple", "ginkgo", "plane", "pine", "willow", "cypress", "bush"] },
+	{ "rect": [215, 127, 30, 22], "count": 26, "kinds": ["cherry", "maple", "plane", "crabapple", "oak", "bamboo", "cypress", "bush"] }
   ],
 
   "props": [
-	{ "type": "flagpole", "x": 188, "y": 150 },
-	{ "type": "bell", "x": 200, "y": 142 },
-	{ "type": "stele", "x": 200, "y": 144 },
-	{ "type": "sign", "x": 211, "y": 149, "text": "校园平面图" },
-	{ "type": "boat", "x": 58, "y": 38 },
+	{ "type": "flagpole", "x": 196, "y": 150 },
+	{ "type": "bell", "x": 208, "y": 142, "offset": [-8, 0] },
+	{ "type": "stele", "x": 208, "y": 144, "offset": [-8, 0] },
+	{ "type": "sign", "x": 219, "y": 149, "text": "校园平面图" },
+	{ "type": "boat", "x": 55, "y": 46 },
 	{ "type": "pavilion", "x": 336, "y": 56 },
 	{ "type": "bike_rack", "x": 292, "y": 70 },
 	{ "type": "bike_rack", "x": 292, "y": 78 },
@@ -282,13 +268,13 @@
 	{ "type": "bench", "x": 96, "y": 25 },
 	{ "type": "bench", "x": 140, "y": 25 },
 	{ "type": "bench", "x": 280, "y": 25 },
-	{ "type": "bench", "x": 170, "y": 127 },
-	{ "type": "bench", "x": 226, "y": 127 },
+	{ "type": "bench", "x": 178, "y": 127 },
+	{ "type": "bench", "x": 234, "y": 127 },
 	{ "type": "bench", "x": 96, "y": 56 },
-	{ "type": "planter", "x": 168, "y": 25 },
+	{ "type": "planter", "x": 164, "y": 26 },
 	{ "type": "planter", "x": 246, "y": 25 },
 	{ "type": "planter", "x": 160, "y": 60 },
-	{ "type": "planter", "x": 250, "y": 60 },
+	{ "type": "planter", "x": 254, "y": 60 },
 	{ "type": "bin", "x": 160, "y": 24 },
 	{ "type": "bin", "x": 232, "y": 124 }
   ]

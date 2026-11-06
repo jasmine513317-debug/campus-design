@@ -8,7 +8,7 @@
 
 | 文件 | 覆盖对象 | 建议尺寸 |
 | --- | --- | --- |
-| `tree_oak.png` / `tree_ginkgo.png` / `tree_maple.png` / `tree_plane.png` / `tree_cypress.png` / `tree_cherry.png` / `tree_crabapple.png` / `tree_pine.png` / `tree_willow.png` / `tree_bamboo.png` | 树 | 16–48 px 宽，底部对齐 |
+| `tree_oak.png` / `tree_ginkgo.png` / `tree_maple.png` / `tree_plane.png` / `tree_cypress.png` / `tree_cherry.png` / `tree_crabapple.png` / `tree_pine.png` / `tree_willow.png` / `tree_bamboo.png` | 树 | 默认阔叶树 58×76 px、松树 44×76 px，底部居中对齐 |
 | `prop_bench.png` / `prop_lamp.png` / `prop_bin.png` / `prop_sign.png` / `prop_boat.png` / `prop_bell.png` / `prop_stele.png` / `prop_fountain.png` / `prop_flagpole.png` / `prop_bike_rack.png` / `prop_planter.png` | 道具 | 16–190 px 宽 |
 | `player_*.png` 等角色图 | 暂未接入（人物按衣服颜色动态生成） | — |
 

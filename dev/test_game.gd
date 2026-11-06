@@ -30,7 +30,7 @@ func _ready() -> void:
 		print("ALL TESTS PASSED")
 	else:
 		print("%d TEST(S) FAILED" % _fails)
-	get_tree().quit()
+	get_tree().quit(0 if _fails == 0 else 1)
 
 
 func _ok(cond: bool, label: String) -> void:
@@ -47,7 +47,7 @@ func _check_layout() -> void:
 	var solids: Node = _world.get_node_or_null("Solids")
 	_ok(solids != null and solids.get_child_count() > 200, "静态碰撞体 = %d" % (solids.get_child_count() if solids else 0))
 	_ok(get_tree().get_nodes_in_group("farm_grids").is_empty(), "农田已全部移除")
-	_ok(_world._buildings.size() == 17, "建筑数量 = %d（西侧 4 个 U 形楼 + 3 连廊 + 其余）" % _world._buildings.size())
+	_ok(_world._buildings.size() == 15, "建筑数量 = %d（西侧 3 个 U 形楼 + 2 连廊 + 其余）" % _world._buildings.size())
 	_ok(_world._courts.size() == 2, "篮球场数量 = %d（只保留上侧两个）" % _world._courts.size())
 	_ok(_world._tennis.size.x > 0, "网球场 = %s" % _world._tennis.size)
 	_ok(_world._pond.size.x > 0, "小池塘 = %s" % _world._pond.size)
@@ -56,8 +56,8 @@ func _check_layout() -> void:
 	_ok(int(consts.get("FLOORS", 0)) == 5, "所有建筑按 5 层绘制")
 	var gate: Rect2i = _world._gates[0]
 	var gate_center: float = (gate.position.x + gate.size.x * 0.5) * 16.0
-	var campus_center: float = (_world._campus.position.x + _world._campus.size.x * 0.5) * 16.0
-	_ok(absf(gate_center - campus_center) < 20.0, "校门居中：gate=%.0f campus=%.0f" % [gate_center, campus_center])
+	var axis: float = _world.axis_world_x()
+	_ok(is_equal_approx(gate_center, axis), "校门与北侧教学楼通路共轴：gate=%.0f axis=%.0f" % [gate_center, axis])
 
 
 func _check_camera() -> void:
@@ -88,7 +88,7 @@ func _check_npcs() -> void:
 
 
 func _check_interact() -> void:
-	var sign_pos := Vector2(211 * 16 + 8, 149 * 16 + 8)
+	var sign_pos := Vector2(219 * 16 + 8, 149 * 16 + 8)
 	var msg: String = _world.try_interact(sign_pos)
 	_ok(msg.length() > 0, "校牌可互动：%s" % msg)
 	_ok(_world.zone_name(Vector2(200 * 16, 140 * 16)) == "中心花园", "区域识别：中心花园")

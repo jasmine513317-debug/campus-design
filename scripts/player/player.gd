@@ -25,6 +25,8 @@ const SKIN := Color("e9b489")
 
 func _ready() -> void:
 	add_to_group("player")
+	collision_mask = 3
+	_ensure_controls()
 	_estate = get_node_or_null(estate_path)
 	if _estate == null:
 		_estate = get_parent().get_node_or_null("World")
@@ -36,6 +38,15 @@ func _ready() -> void:
 	_setup_camera()
 	_build_particles()
 	Messages.say("WASD 移动 · Shift 奔跑 · 空格 互动 · T 跳到清晨 · F1 隐藏提示")
+
+
+func _ensure_controls() -> void:
+	# Godot's built-in ui actions provide arrows; add physical WASD once per session.
+	for action in {"ui_left": KEY_A, "ui_right": KEY_D, "ui_up": KEY_W, "ui_down": KEY_S}:
+		var key := InputEventKey.new()
+		key.physical_keycode = {"ui_left": KEY_A, "ui_right": KEY_D, "ui_up": KEY_W, "ui_down": KEY_S}[action]
+		if not InputMap.action_has_event(action, key):
+			InputMap.action_add_event(action, key)
 
 
 func _physics_process(delta: float) -> void:
@@ -57,6 +68,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_interact()
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
+		if event.physical_keycode in [KEY_EQUAL, KEY_MINUS]:
+			var step := 1 if event.physical_keycode == KEY_EQUAL else -1
+			var zoom := clampf(roundf(_camera.zoom.x) + step, 1, 4)
+			_camera.zoom = Vector2(zoom, zoom)
 		if event.physical_keycode == KEY_T:
 			GameClock.sleep_until_morning()
 			Messages.say("第 %d 天，清晨的校园很安静。" % GameClock.day)
